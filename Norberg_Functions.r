@@ -1,13 +1,47 @@
+#==============================================================
+# Norberg et al. Eco-Evo ODE Model Functions
+#    - Source this file at top of model script.
+#==============================================================
+
+#==============================================================
+# Load necessary libraries
+#==============================================================
 library(deSolve)
 library(numDeriv)
 
-
+#==============================================================
+# Growth rate function (Equation (3) from supplemental material
+#   to Norberg et al. 2012). Determines growth rate as a 
+#   function of species trait (optimum temperature) and local
+#   environmental condition (reef temperature).
+# Parameters:
+#   rmax: Maximum growth rate for species
+#   TC:   Current temperature of reef
+#   zi:   Current optimum temperature for species
+#   w:    Temperature tolerance
+#==============================================================
 growth.fun<-function(rmax,TC,zi,w)
 {
   rixt<-rmax*exp((-1*(TC-zi)^2)/(w^2))
   return(rixt)
 }
 
+#==============================================================
+# Fitness function (Equation (2) from supplemental material
+#   to Norberg et al. 2012). Determines fitness as a 
+#   function of local growth rate, mortality rate, and species
+#   interactions (competition for space).
+# Calls growth.fun()
+# Parameters:
+#   rmax:   Maximum growth rate for species
+#   TC:     Current temperature of reef
+#   zi:     Current optimum temperature for species
+#   w:      Temperature tolerance
+#   alphas: Species interaction matrix
+#   Nall:   Vector of abundances for all species
+#   mort:   Mortality rate
+#   mpa:    Effect of MPA on mortality rate of species
+#==============================================================
 fitness.fun<-function(zi,rmax,TC,w,alphas,Nall,mort,mpa)
 {
   rixt<-growth.fun(rmax=rmax,TC=TC,zi=zi,w=w)
@@ -18,11 +52,33 @@ fitness.fun<-function(zi,rmax,TC,w,alphas,Nall,mort,mpa)
   return(gixt)
 }
 
-dNdx<-function(Ni,delx) # can use for both dNdx and dzdx
+#==============================================================
+# Function to calculate the partial derivitive of species
+#   density over space. This function is used in the last
+#   expression of equation (1a) and the last expression of
+#   equation (1b) from Norberg et al. 2012 supplemental
+#   material. Note that when used in equation (1b), need to 
+#   enter log(Ni) for Ni. For use in equation (1a), it is 
+#   called within dNdx2(), described below.
+# Parameters:
+#   Ni:   Vector of densities of species i along reef 
+#   delx: Interval across which to calculate derivitive  
+#==============================================================
+dNdx<-function(Ni,delx)
 {
   dNdx<-diff(c(Ni,0))/delx
 }
 
+#==============================================================
+# Function to calculate the second partial derivitive of
+#   species density over space. This function is used in the
+#   last expression of equation (1a) from Norberg et al. 2012
+#   supplemental material.
+# Calls dNdx()
+# Parameters:
+#   Ni:   Vector of densities of species i along reef 
+#   delx: Interval across which to calculate derivitive  
+#==============================================================
 dNdx2<-function(Ni,delx) # can use for both dNdx and dzdx
 {
   d1<-dNdx(Ni=c(0,Ni),delx=delx)
@@ -30,20 +86,59 @@ dNdx2<-function(Ni,delx) # can use for both dNdx and dzdx
   return(d2 )
 }
 
+#==============================================================
+# Function to calculate the partial derivitive of trait
+#   value over space. This function is used in the last 
+#   expression of equation (1b) from Norberg et al. 2012 
+#   supplemental material. For use in equation (1b), it is 
+#   called within dNdx2(), described below, as well as called
+#   alone.
+# Parameters:
+#   zi:   Vector of optimal temperatures for species i along 
+#             reef 
+#   delx: Interval across which to calculate derivitive  
+#==============================================================
 dZdx<-function(zi,delx) # can use for both dNdx and dzdx
 {
   dZdx<-diff(c(zi,zi[length(zi)]))/delx
 }
 
-dZdx2<-function(zi,delx) # can use for both dNdx and dzdx
+#==============================================================
+# Function to calculate the second partial derivitive of trait
+#   value over space. This function is used in the last 
+#   expression of equation (1b) from Norberg et al. 2012 
+#   supplemental material. 
+# Calls dZdx()
+# Parameters:
+#   zi:   Vector of optimal temperatures for species i along 
+#             reef 
+#   delx: Interval across which to calculate derivitive  
+#==============================================================
+dZdx2<-function(zi,delx)
 {
   d1<-dZdx(zi=c(zi[1],zi),delx=delx)
   d2<-diff(d1)/delx
   return(d2 )
 }
 
-
-my.hessian<-function(zi,rmax,TC,w,alphas,N,mort,Nall,mpa)
+#==============================================================
+# Function to calculate the second partial derivitive of growth
+#   rate across changes in trait space. This function is used 
+#   the genetic load component of equation (1a) in the 
+#   Norberg et al. 2012 supplemental material. 
+# Calls fitness.fun(), growth.fun()
+# Parameters:
+#   zi:   Vector of optimal temperatures for species i along 
+#             reef 
+#   rmax:   Maximum growth rate for species
+#   TC:     Current temperature of reef
+#   w:      Temperature tolerance
+#   alphas: Species interaction matrix
+#   Nall:   Vector of abundances for all species
+#   mort:   Mortality rate
+#   mpa:    Effect of MPA on mortality rate of species
+#==============================================================
+dGdZ2<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa)
 {
   hess.out<-rep(0,length(zi))
   for(h in 1:length(zi))
@@ -53,7 +148,24 @@ my.hessian<-function(zi,rmax,TC,w,alphas,N,mort,Nall,mpa)
   return(hess.out)
 }
 
-my.grad<-function(zi,rmax,TC,w,alphas,N,mort,Nall,mpa)
+#==============================================================
+# Function to calculate the partial derivitive of growth
+#   rate across changes in trait space. This function is used 
+#   the directionsal selection component of equation (1b) in 
+#   the Norberg et al. 2012 supplemental material. 
+# Calls fitness.fun(), growth.fun()
+# Parameters:
+#   zi:   Vector of optimal temperatures for species i along 
+#             reef 
+#   rmax:   Maximum growth rate for species
+#   TC:     Current temperature of reef
+#   w:      Temperature tolerance
+#   alphas: Species interaction matrix
+#   Nall:   Vector of abundances for all species
+#   mort:   Mortality rate
+#   mpa:    Effect of MPA on mortality rate of species
+#==============================================================
+dGdZ<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa)
 {
   grad.out<-rep(0,length(zi))
   for(h in 1:length(zi))
@@ -63,18 +175,46 @@ my.grad<-function(zi,rmax,TC,w,alphas,N,mort,Nall,mpa)
   return(grad.out)
 }
 
-
-
+#==============================================================
+# Function to calculate the partial derivitive of density
+#   across time. Equation (1a) in the Norberg et al. 2012 
+#   supplemental material. 
+# Calls fitness.fun(), growth.fun(), dNdx(), dNdx2(), dGdZ2(),
+#   dGdZ()
+# Parameters:
+#   Ni:   vector of current densities foe species i
+#   V:    Genetic variation
+#   zi:   Vector of optimal temperatures for species i along 
+#             reef 
+#   Di:     Dispersal rate for species i
+#   TC:     Current temperature of reef
+#   delx: Interval across which to calculate derivitive for
+#           spatial derivitives
+#   rmax:   Maximum growth rate for species
+#   w:      Temperature tolerance
+#   alphas: Species interaction matrix
+#   mort:   Mortality rate
+#   Nall:   Vector of abundances for all species
+#   mpa:    Effect of MPA on mortality rate of species
+#==============================================================
 dNdt<-function(Ni,V,zi,Di,TC,delx,rmax,w,alphas,mort,Nall,mpa)
 {
-  popdy<-Ni*fitness.fun(zi=zi,rmax=rmax,TC=TC,w=w,alphas=alphas,mort=mort,Nall=Nall,mpa=mpa)
-  genload<-.5*V*Ni*my.hessian(zi=zi,rmax=rmax,TC=TC,w=w,Nall=Nall,alphas=alphas,N=Ni,mort=mort,mpa=mpa)
-  dispersal<-Di*dNdx2(Ni=Ni,delx=delx)
+  popdy<-Ni*fitness.fun(zi=zi,rmax=rmax,TC=TC,w=w,alphas=alphas,mort=mort,Nall=Nall,mpa=mpa) # Population dynamics component
+  genload<-.5*V*Ni*dGdZ2(zi=zi,rmax=rmax,TC=TC,w=w,Nall=Nall,alphas=alphas,mort=mort,mpa=mpa) # Genetic load component
+  dispersal<-Di*dNdx2(Ni=Ni,delx=delx) # Dispersal component
   popchange<-popdy+genload+dispersal
-  popchange[popchange<(-1*Ni+10^-6)]<-(-1*Ni[popchange<(-1*Ni+10^-6)]+10^-6)
+  popchange[popchange<(-1*Ni+10^-6)]<-(-1*Ni[popchange<(-1*Ni+10^-6)]+10^-6)  # Checking if population density falls below Nmin
   return(popchange)
 }
 
+#==============================================================
+# Function to prevent directional selection of virtually
+#   extinct populations and enhance numerical stability. 
+#   Described in supplemental material of Norberg et al (2012).
+# Parameters:
+#   Ni:   vector of current densities foe species i
+#   Nmin: Minimum value for density at any given location
+#==============================================================
 qfun<-function(Ni,Nmin=10^-6)
 {
   qixt<-max(0,
@@ -82,50 +222,37 @@ qfun<-function(Ni,Nmin=10^-6)
   return(qixt)
 }
 
-  
-dZdt<-function(V,Ni,zi,TC,rmax,w,alphas,mort,D,delx,Nall,mpa,Nmin)
-{
+#==============================================================
+# Function to calculate the partial derivitive of trait value
+#   across time. Equation (1b) in the Norberg et al. 2012 
+#   supplemental material. 
+# Calls fitness.fun(), growth.fun(), dNdx(), dNdx2(), dGdZ2(),
+#   dGdZ()
+# Parameters:
+#   Ni:   vector of current densities foe species i
+#   V:    Genetic variation
+#   zi:   Vector of optimal temperatures for species i along 
+#             reef 
+#   Di:     Dispersal rate for species i
+#   TC:     Current temperature of reef
+#   delx: Interval across which to calculate derivitive for
+#           spatial derivitives
+#   rmax:   Maximum growth rate for species
+#   w:      Temperature tolerance
+#   alphas: Species interaction matrix
+#   mort:   Mortality rate
+#   Nall:   Vector of abundances for all species
+#   mpa:    Effect of MPA on mortality rate of species
+#   Nmin:   Minimum density allowed (required for log values)
+#==============================================================  
+dZdt<-function(Ni,V,zi,Di,TC,delx,rmax,w,alphas,mort,Nall,mpa,Nmin)
+{               
   q<-qfun(Ni=Ni)
-  directselect<-q*V*my.grad(zi=zi,rmax=rmax,TC=TC,w=w,alphas=alphas,
-                               Nall=Nall,mort=mort,mpa=mpa)
-  geneflow<-D*(dZdx2(zi=zi,delx=delx)+2*dNdx(Ni=log(max(Ni,Nmin)),
-                                             delx=delx)*dZdx(zi=zi,delx=delx))
+  directselect<-q*V*dGdZ(zi=zi,rmax=rmax,TC=TC,w=w,alphas=alphas,
+                               Nall=Nall,mort=mort,mpa=mpa)                     # Directional selection component
+  geneflow<-Di*(dZdx2(zi=zi,delx=delx)+2*dNdx(Ni=log(max(Ni,Nmin)),
+                                             delx=delx)*dZdx(zi=zi,delx=delx))  # Gene flow component
   traitchange<-directselect+geneflow
   return(traitchange)
   
 }
-
-#==============================================
-# Example code to test functions
-#==============================================
-# 
-# temps<-20+.1*(seq(1,30,by=1))
-# nsp<-2
-# Topt<-20
-# traits<-rep(Topt,(nsp*30))
-# V<-1
-# D<-0
-# delx<-.1
-# w<-5
-# rmax<-1
-# alphas<-matrix(c(1,1,1,1),byrow=T,nrow=2,ncol=2)
-# m<-.1
-
-
-# hessian(func=fitness.fun,x=20,rmax=rmax,TC=22.5,w=w,alphas=alphas[1,],N=.1,mort=m)
-# grad(func=fitness.fun,x=20,rmax=rmax,TC=22.5,w=w,alphas=alphas[1,],N=.1,mort=m)
-# # 
-# my.hessian(zi=traits[1:30],rmax=rmax,TC=temps,w=w,alphas=alphas[1,],
-#            Nall=rbind(rep(.1,30),rep(.1,30)),mort=m)
-# my.grad(zi=traits[1:30],rmax=rmax,TC=temps,w=w,alphas=alphas[1,],N=rep(.1,30),mort=m)
-# 
-# gixt<-fitness.fun(zi=traits[1:30],rmax=rmax,TC=rep(21.5,30),w=w,alphas=alphas[1,],
-#             N=rep(.1,30),m=m)
-
-
-
-# 
-# dNdt(Ni=rep(.01,30),V=V,zi=temps,Di=D,TC=temps,delx=delx,
-#      rmax=1,alphas=alphas[1,],mort=m,w=w)
-
-
