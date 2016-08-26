@@ -287,3 +287,97 @@ dZbardt<-function(Zall,Nall)
   return(list("dZbardt"=dZbar.dt,"Ecology"=eco,"Evolution"=evo,"props"=p_all))
   
 }
+
+#======================================================================
+# The following functions are not from the Norberg et al 2012 paper,
+#     but are used to generate starting conditions for species density,
+#     optimal traits, and temperatures across the reef.
+#======================================================================
+
+#======================================================================
+# Function to generate temperatures across the reef. Temperatures can
+#     take on several patterns, including uniform, linear increase, or
+#     randomized.
+# Parameters:
+#     size:  Size of the reef (number of cells)
+#     mid:   Mean of the temperature range on reef
+#     range: Range of temperatures across reef
+#     temp.scenario: Temperature scenario. Uniform has same (mid value)
+#                       temperature at all locations. Linear has a 
+#                       linearly increasing temperature centered on
+#                       mid value. Random draws a random temperature
+#                       for each cell from a normal distribution
+#                       with mean equal to mid value, and sd equal to
+#                       half of range value.
+#======================================================================
+generate.temps<-function(size,mid=25,range=5,temp.scenario=c("uniform","linear","random"))
+{
+  temps<-switch(temp.scenario,
+                uniform=rep(mid,size),
+                linear=seq((mid-(range/2)),(mid+range/2),length.out=size),
+                random=rnorm(size,mid,range/2))
+  return(temps)
+}
+
+#======================================================================
+# Function to generate traits across the reef. Traits can
+#     take on several patterns, including uniform, linear increase, or
+#     randomized. Traits represent the optimum temperature for species
+#     i at each location.
+# Parameters:
+#     nsp:   Number of species in model
+#     size:  Size of the reef (number of cells)
+#     mid:   Mean of the temperature range on reef
+#     range: Range of temperatures across reef
+#     temps: Temperatures at each reef location
+#     trait.scenario: Trait scenario. u.const has unique traits for
+#                       each species, which are constant across reef. 
+#                       perfect.adapt has perectly adapted organisms,
+#                       whose traits are equal to the temperature on
+#                       they experience on the reef. Same.constant 
+#                       produces the same trait for all species at all
+#                       locations.
+#======================================================================
+generate.traits<-function(nsp,size,mid,range,temps,trait.scenario=c("u.const","perfect.adapt",
+                                                                    "same.constant"))
+{
+  if(trait.scenario%in%c("u.const","perfect.adapt",
+                         "same.constant")){
+    if(trait.scenario=="u.const")
+    {
+      trts<-seq((mid-(range/2)),(mid+range/2),length.out=(nsp+2))[-c(1,nsp+2)]
+      traits<-matrix(trts,nrow=nsp,ncol=size,byrow=F)
+    }
+    
+    if(trait.scenario=="same.const")
+    {
+      traits<-matrix(mid,nrow=nsp,ncol=size,byrow=F)
+    }
+    
+    if(trait.scenario=="perfect.adapt")
+    {
+      traits<-matrix(temps,nrow=nsp,ncol=size,byrow=T)
+    }
+    
+  }
+  
+  else stop("Invalid scenario provided")
+  
+  return(traits)
+}
+
+#======================================================================
+# Function to generate starting densities for all species at each
+#     location on the reef. Currently produces constant densities
+#     across species and space.
+# Parameters:
+#     nsp:   Number of species in model
+#     size:  Size of the reef (number of cells)
+#     dens:  Starting density
+#======================================================================
+generate.state<-function(size,nsp,dens=.01)
+{
+  state<-matrix(dens,nrow=nsp,ncol=size)
+  return(state)
+}
+
