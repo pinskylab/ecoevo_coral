@@ -256,3 +256,34 @@ dZdt<-function(Ni,V,zi,Di,TC,delx,rmax,w,alphas,mort,Nall,mpa,Nmin)
   return(traitchange)
   
 }
+
+#==============================================================
+# Function to partition the ecological and evolutionary
+#   processes responsible for local trait changes. From the
+#   supplemental material of Norberg et al. (2012). Calculates
+#   values at every point in space and time.
+# Parameters:
+#   Zall:  Vector of traits for all species at site j across
+#             time. Rows for species, columns for time.
+#   Nall:  Vector of densities for all species at site j
+#             across time. Rows for species, columns for time.
+#==============================================================
+dZbardt<-function(Zall,Nall)
+{
+  # Ecology component
+  p_all<-t(t(Nall)/colSums(Nall))             # proportional densities for each species across time
+  p_all.add<-cbind(p_all[,1],p_all)           # add a column at start of time series so that derivitive at
+                                              #   time 0 is 0.
+  dpdt<-t(apply(p_all.add,MARGIN=1,FUN=diff))
+  eco<-colSums(Zall*dpdt)
+  
+  # Evolution component
+  Zall.add<-cbind(Zall[,1],Zall)
+  dZ.dt<-t(apply(Zall.add,MARGIN=1,FUN=diff))
+  evo<-colSums(p_all*dZ.dt)
+  
+  dZbar.dt<-eco+evo
+  
+  return(list("dZbardt"=dZbar.dt,"Ecology"=eco,"Evolution"=evo,"props"=p_all))
+  
+}
