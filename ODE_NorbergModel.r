@@ -11,6 +11,12 @@ sppstate<-generate.state(size=size,nsp=nsp,dens=0.1)
 traitstate<-generate.traits(nsp=nsp,size=size,mid=mid,range=range,trait.scenario="u.const")
 allstate<-c(as.vector(t(sppstate)),as.vector(t(traitstate)),temps)
 
+sptype=c(rep(1,(nsp-1)),2)
+mpa<-matrix(rep(1,size*nsp),nrow=nsp,ncol=size,byrow=T)
+mpa[sptype==1,c(round(size/3):2*round(size/3))]<-1
+mpa[sptype==2,c(round(size/3):2*round(size/3))]<-1.5
+
+
 allnames<-c("spp1","spp2","opt1","opt2","temps")
 
 parms<-list(
@@ -22,7 +28,6 @@ parms<-list(
   alphas=matrix(1,nrow=nsp,ncol=nsp),
   m=.1,
   w=5,
-  mpa=.9,
   annual.temp.change<-.02,
   maxtemp<-30,
   
@@ -44,9 +49,9 @@ coral_trait<-function(t,y, parms,size,nsp,names,temp.change=c("const","linear","
     for(i in 1:nsp)
     { 
       dspp[i,]<-dNdt(Ni=spps[i,],zi=traits[i,],Nall=spps,rmax=rmax,V=V,D=D,w=w,mort=m,
-                     TC=temps,alphas=alphas[i,],delx=1,mpa=mpa)
+                     TC=temps,alphas=alphas[i,],delx=1,mpa=mpa[i,])
       dtraits[i,]<-dZdt(Ni=spps[i,],zi=traits[i,],Nall=spps,rmax=rmax,V=V,D=D,w=w,mort=m,
-                        TC=temps,alphas=alphas[i,],delx=1,mpa=mpa)
+                        TC=temps,alphas=alphas[i,],delx=1,mpa=mpa[i,],Nmin=Nmin)
     }
     
     dtemps<-switch(temp.change,
@@ -54,22 +59,7 @@ coral_trait<-function(t,y, parms,size,nsp,names,temp.change=c("const","linear","
                    linear=rep(annual.temp.change,size),
                    sigmoid=rep((annual.temp.change*mean(temps)*(1-(mean(temps)/maxtemp))),size))
     
-    dsp<-NA
-    j<-1
-    while(j <=nsp)
-    {
-      dsp<-c(dsp,dspp[j,])
-      j<-j+1
-    }
-    dsp<-dsp[-1]
-    j<-1
-    while(j <=nsp)
-    {
-      dsp<-c(dsp,dtraits[j,])
-      j<-j+1
-    }
-    dsp<-c(dsp,dtemps)
-   # dsp<-c(as.vector(t(dspp)),as.vector(t(dtraits)),dtemps)
+    dsp<-c(as.vector(t(dspp)),as.vector(t(dtraits)),dtemps)
     return(list(dsp))
   })
 
