@@ -1,21 +1,17 @@
 source("Norberg_Functions.r")
 
-nsp<-2
-size<-50
-times<-seq(0,500,by=1)
-Topt1<-20
-Topt2<-25
-Nmin=10^-6
+nsp<-2                        # how many species in model?
+size<-20                      # how many reefs in model?
+times<-seq(0,200,by=1)        # How many time steps?
+mid<-25                       # mean temperature across all reefs at start of simulation.
+range<-5                      # range of temperatures across reefs at start of simulation
 
-sppstate<-matrix(c(rep(.01,5),rep(Nmin,90),rep(.01,5)),nrow=nsp,ncol=size,byrow=T)
-traitstate<-matrix(c(rep(Topt1,size),rep(Topt2,size)),nrow=2,ncol=size,byrow=T)
+temps<-generate.temps(size=size,mid=mid,range=range,temp.scenario="linear")
+sppstate<-generate.state(size=size,nsp=nsp,dens=0.1)
+traitstate<-generate.traits(nsp=nsp,size=size,mid=mid,range=range,trait.scenario="u.const")
+allstate<-c(as.vector(t(sppstate)),as.vector(t(traitstate)),temps)
 
 allnames<-c("spp1","spp2","opt1","opt2","temps")
-
-
-temps<-20+.1*seq(1,50,length.out=size)
-
-allstate<-c(sppstate[1,],sppstate[2,],traitstate[1,],traitstate[2,],temps)
 
 parms<-list(
   
@@ -26,19 +22,17 @@ parms<-list(
   alphas=matrix(1,nrow=nsp,ncol=nsp),
   m=.1,
   w=5,
+  mpa=.9,
+  annual.temp.change<-.02,
+  maxtemp<-30,
   
   Nmin=10^-6,
   deltax=1
   
   )
 
-
-
-
-coral_trait<-function(t,y, parms,size,nsp,names){
-  
-
-  
+coral_trait<-function(t,y, parms,size,nsp,names,temp.change=c("const","linear","sigmoid")){
+    
   with(as.list(parms), {
   
     spps<-matrix(y[1:(size*nsp)],nrow=nsp,ncol=size,byrow=T)
@@ -49,11 +43,16 @@ coral_trait<-function(t,y, parms,size,nsp,names){
     dtraits<-traits
     for(i in 1:nsp)
     { 
-      dspp[i,]<-dNdt(Ni=spps[i,],zi=traits[i,],Nall=spps,rmax=rmax,V=V,D=D,w=w,mort=m,TC=temps,alphas=alphas[i,],delx=1)
-      dtraits[i,]<-dZdt(Ni=spps[i,],zi=traits[i,],Nall=spps,rmax=rmax,V=V,D=D,w=w,mort=m,TC=temps,alphas=alphas[i,],delx=1)
+      dspp[i,]<-dNdt(Ni=spps[i,],zi=traits[i,],Nall=spps,rmax=rmax,V=V,D=D,w=w,mort=m,
+                     TC=temps,alphas=alphas[i,],delx=1,mpa=mpa)
+      dtraits[i,]<-dZdt(Ni=spps[i,],zi=traits[i,],Nall=spps,rmax=rmax,V=V,D=D,w=w,mort=m,
+                        TC=temps,alphas=alphas[i,],delx=1,mpa=mpa)
     }
     
-    dtemps<-rep(0.02,size)
+    dtemps<-switch(temp.change,
+                   const=rep(0,size),
+                   linear=rep(annual.temp.change,size),
+                   sigmoid=rep((annual.temp.change*mean(temps)*(1-(mean(temps)/maxtemp))),size))
     
     dsp<-NA
     j<-1
@@ -70,13 +69,14 @@ coral_trait<-function(t,y, parms,size,nsp,names){
       j<-j+1
     }
     dsp<-c(dsp,dtemps)
+   # dsp<-c(as.vector(t(dspp)),as.vector(t(dtraits)),dtemps)
     return(list(dsp))
   })
 
   
 }
 
-coral_trait(t=times,y=allstate,parms=parms,size=size,nsp=nsp)
+coral_trait(t=times,y=allstate,parms=parms,size=size,nsp=nsp,temp.change="constant")
 
 out <- ode.1D(y = allstate, t = times, func = coral_trait, parms = parms,
               nspec = (nsp*2)+1, names = allnames, dimens=size,size=size,nsp=nsp)
