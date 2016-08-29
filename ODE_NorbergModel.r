@@ -58,7 +58,7 @@ coral_trait<-function(t,y, parms,size,nsp,names,temp.change=c("const","linear","
                    const=rep(0,size),
                    linear=rep(annual.temp.change,size),
                    sigmoid=rep((annual.temp.change*mean(temps)*(1-(mean(temps)/maxtemp))),size))
-    dtemps<-rep(0,size)    
+    #dtemps<-rep(0,size)    
 
     dsp<-c(as.vector(t(dspp)),as.vector(t(dtraits)),dtemps)
     return(list(dsp))
