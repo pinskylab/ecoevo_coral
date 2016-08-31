@@ -184,8 +184,6 @@ for(i in 1:(2*nsp+1))   # loop through each state variable
 # Create plots of distribution of species densities over time
 #   - 1 plot for hard corals
 #   - 1 plot for macroalgae
-#
-# NOT CURRENTLY AUTOMATED FOR CHANGES IN NSP!!!
 #====================================================================================
 hard.corals<-which(sptype==1) # Which of the species are hard corals?
 macro.algae<-which(sptype==2) # Which of the species are macroalgae?
