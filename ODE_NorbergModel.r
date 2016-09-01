@@ -1,8 +1,11 @@
 source("Norberg_Functions.r")
+start.parms<-read.csv("Norberg_StartingParameters_test.csv",header=T)
 
-nsp<-2                        # how many species in model?
+
+nsp<-4                        # how many species in model?
 size<-20                      # how many reefs in model?
-times<-seq(0,50,by=1)         # Vector from 1 to the number of time steps
+maxtime<-500                  # How long to run simulation?
+times<-seq(0,maxtime,by=1)    # Vector from 1 to the number of time steps
 mid<-25                       # mean temperature across all reefs at start of simulation.
 range<-5                      # range of temperatures across reefs at start of simulation
 
@@ -52,19 +55,38 @@ mpa[sptype==2,c((round(size/3)):(2*round(size/3)))]<-1.5
 parms<-list(
   nsp=nsp,
   
-  V=c(.1,.1),
-  D=c(0.1,.1),
-  rmax=c(1,.9),
+  V=c(t(start.parms[start.parms[,1]=="V",((1:nsp)+1)])),
+  D=c(t(start.parms[start.parms[,1]=="D",((1:nsp)+1)])),
+  rmax=c(t(start.parms[start.parms[,1]=="Rmax",((1:nsp)+1)])),
   alphas=matrix(1,nrow=nsp,ncol=nsp),
-  m=c(.1,.1),
-  w=c(5,5),
+  m=c(t(start.parms[start.parms[,1]=="M.normal",((1:nsp)+1)])),
+  m.normal=c(t(start.parms[start.parms[,1]=="M.normal",((1:nsp)+1)])),
+  m.catastrophe=c(t(start.parms[start.parms[,1]=="M.catastrophe",((1:nsp)+1)])),
+  w=c(t(start.parms[start.parms[,1]=="w",((1:nsp)+1)])),
+  pcatastrophe=0.02,
   
   annual.temp.change=.02,
   maxtemp=30,
   Nmin=10^-6,
   deltax=1
   
-  )
+)
+# parms<-list(
+#   nsp=nsp,
+#   
+#   V=c(.1,.1),
+#   D=c(0.1,.1),
+#   rmax=c(1,.9),
+#   alphas=matrix(1,nrow=nsp,ncol=nsp),
+#   m=c(.1,.1),
+#   w=c(5,5),
+#   
+#   annual.temp.change=.02,
+#   maxtemp=30,
+#   Nmin=10^-6,
+#   deltax=1
+#   
+#   )
 
 
 #===================================================================================
@@ -133,7 +155,7 @@ delx<-1     # cell size for heat map grid
 Distance <- seq(from = 0.5, by = delx, length.out = size) # Creates grid for heat map
 
 windows() # open graphics window
-spp.to.plot<-2 # How many species to plot?
+spp.to.plot<-4 # How many species to plot?
 which.to.plot<-c(1:spp.to.plot,((nsp+1):(nsp+spp.to.plot)),(nsp*2+1)) # Which states are being plotted. Alternatively can be set manually to picj individual states.
 
 all.labels<-c(paste("Coral",seq(1,nsp),"Density By Reef Location",sep=" "),paste("Coral",seq(1,nsp),"Trait By Reef Location",sep=" "),"Temperature")

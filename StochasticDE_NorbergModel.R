@@ -1,8 +1,10 @@
 source("Norberg_Functions.r")
+start.parms<-read.csv("Norberg_StartingParameters_test.csv",header=T)
+
 
 nsp<-3                        # how many species in model?
-size<-20                      # how many reefs in model?
-maxtime<-50                   # how many time steps?
+size<-50                      # how many reefs in model?
+maxtime<-1000                   # how many time steps?
 times<-seq(0,maxtime,by=1)    # Vector from 1 to the number of time steps
 mid<-25                       # mean temperature across all reefs at start of simulation.
 range<-5                      # range of temperatures across reefs at start of simulation
@@ -16,9 +18,9 @@ range<-5                      # range of temperatures across reefs at start of s
 # Create vector of names for each "State"
 #   - species names, then trait names, then temperature
 #==============================================================================
-temps<-generate.temps(size=size,mid=mid,range=range,temp.scenario="linear") 
-sppstate<-generate.state(size=size,nsp=nsp,dens=0.1)
-traitstate<-generate.traits(nsp=nsp,size=size,mid=mid,range=range,trait.scenario="u.const")
+temps<-generate.temps(size=size,mid=mid+3,range=range,temp.scenario="linear") 
+sppstate<-generate.state(size=size,nsp=nsp,dens=0.25)
+traitstate<-generate.traits(nsp=nsp,size=size,mid=mid,temps=temps,range=range,trait.scenario="perfect.adapt")
 allstate<-c(as.vector(t(sppstate)),as.vector(t(traitstate)),temps)
 
 allnames<-c(paste("spp",seq(1,nsp),sep=""),paste("opt",seq(1,nsp),sep=""),"temps")
@@ -31,7 +33,7 @@ allnames<-c(paste("spp",seq(1,nsp),sep=""),paste("opt",seq(1,nsp),sep=""),"temps
 #   - For species where sptype=1, set mpa<=1
 #   - mpa will be multiplied by mortality rate
 #==============================================================================
-sptype<-c(rep(1,(nsp-1)),2)
+sptype<-c(rep(1,(nsp-1)),1)
 mpa<-matrix(rep(1,size*nsp),nrow=nsp,ncol=size,byrow=T)
 mpa[sptype==2,c((round(size/3)):(2*round(size/3)))]<-1.2
 
@@ -55,14 +57,14 @@ mpa[sptype==2,c((round(size/3)):(2*round(size/3)))]<-1.2
 parms<-list(
   nsp=nsp,
   
-  V=c(.1,.1,.1),
-  D=c(0.1,.1,.1),
-  rmax=c(1,.9,.8),
+  V=c(t(start.parms[start.parms[,1]=="V",((1:nsp)+1)])),
+  D=c(t(start.parms[start.parms[,1]=="D",((1:nsp)+1)])),
+  rmax=c(t(start.parms[start.parms[,1]=="Rmax",((1:nsp)+1)])),
   alphas=matrix(1,nrow=nsp,ncol=nsp),
-  m.normal=c(.1,.1,.1),
-  m.catastrophe=c(.7,.15,.05),
-  w=c(5,5,5),
-  pcatastrophe=0.05,
+  m.normal=c(t(start.parms[start.parms[,1]=="M.normal",((1:nsp)+1)])),
+  m.catastrophe=c(t(start.parms[start.parms[,1]=="M.catastrophe",((1:nsp)+1)])),
+  w=c(t(start.parms[start.parms[,1]=="w",((1:nsp)+1)])),
+  pcatastrophe=0.02,
   
   annual.temp.change=.02,
   maxtemp=30,
@@ -139,7 +141,9 @@ coral_trait_stoch<-function(t,y, parms,size,nsp,temp.change=c("const","linear","
 }
 
 out<-coral_trait_stoch(t=maxtime,y=allstate, parms=parms,size=size,nsp=nsp,     # Runs the model and stores output as "out"
-                       temp.change="const")
+                       temp.change="const",stoch.temp=F)
+
+
 
 #===================================================================================
 # Create plots of state values across space and time. These images will be 
@@ -158,7 +162,7 @@ layout.switch<-switch(as.character(nsp),"1"=matrix(c(1,3,            # Determine
                                  0,7,0),nrow=3,ncol=3,byrow=T),
                       "4"=matrix(c(1,2,3,4,
                                  5,6,7,8,
-                                 9,9,10,11),nrow=3,ncol=4,byrow=T))
+                                 0,9,9,0),nrow=3,ncol=4,byrow=T))
 
 
 all.labels<-c(paste("Coral",seq(1,nsp),"Density By Reef Location",sep=" "),
@@ -171,12 +175,12 @@ for(i in 1:(2*nsp+1))   # loop through each state variable
   if(i<=nsp){
     # Plot species densities (z) across time (x) and space (y)
     image(x=times,y=seq(1:size),z=t(out$ts[((i-1)*size+1):(i*size),]),col=imageCols(24),xlab="Time",
-          ylab="Location on Reef",main=all.labels[i],zlim=c(0,.9))
+          ylab="Location on Reef",main=all.labels[i],zlim=c(0,.8))
   }
   else{
     # Plot species traits or local temperature (z) across time (x) and space (y)
     image(x=times,y=seq(1:size),z=t(out$ts[((i-1)*size+1):(i*size),]),col=imageCols(24),xlab="Time",
-          ylab="Location on Reef",main=all.labels[i],zlim=c(22,28))
+          ylab="Location on Reef",main=all.labels[i],zlim=c(10,200))
   }
 }
 
@@ -187,6 +191,7 @@ for(i in 1:(2*nsp+1))   # loop through each state variable
 #====================================================================================
 hard.corals<-which(sptype==1) # Which of the species are hard corals?
 macro.algae<-which(sptype==2) # Which of the species are macroalgae?
+
 cols<-c("dodgerblue","darkorange","darkgreen","purple","red")  # List of colors for line plots
 
 layout.switch.2<-switch(as.character(length(macro.algae)>0),   # Switch for plot panel layout dependent on nsp
@@ -216,4 +221,16 @@ if(length(macro.algae)>0){ # Are there any macroalgae in the simulation
     
   }
 }
+
+#====================================================================================
+# Create plots of relative contribution of ecological reorganization and 
+#     evolutionary adaptation
+#====================================================================================
+rel_contrib<-dZbardt(Nall=out$ts[1:(nsp*size),],Zall=out$ts[(nsp*size+1):(2*nsp*size),]) # calculate ecological and evolutionary contributions
+
+windows() # opens graphics window
+plot(times[-1],log(abs(rel_contrib$Ecology/rel_contrib$Evolution)),col="darkgreen",type="l",ylim=c(-10,10)) # plot ecological turnover contribution across time
+abline(h=0)
+#lines(times[-1],rel_contrib$Evolution,col="darkorange") # plot evolutionary adaptation across time
+
 

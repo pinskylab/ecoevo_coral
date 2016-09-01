@@ -170,7 +170,7 @@ dGdZ<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa)
   grad.out<-rep(0,length(zi))
   for(h in 1:length(zi))
   {
-    grad.out[h]<-grad(func=fitness.fun,x=zi[h],rmax=rmax,TC=TC[h],Nall=Nall[,h],w=w,alphas=alphas,mort=mort,mpa=mpa[h])
+    grad.out[h]<-grad(func=fitness.fun,x=zi[h],rmax=rmax,TC=TC[h],Nall=Nall[,h],w=w,alphas=alphas,mort=mort,mpa=mpa[h],method="simple")
   }
   return(grad.out)
 }
@@ -203,7 +203,8 @@ dNdt<-function(Ni,V,zi,Di,TC,delx,rmax,w,alphas,mort,Nall,mpa)
   genload<-.5*V*Ni*dGdZ2(zi=zi,rmax=rmax,TC=TC,w=w,Nall=Nall,alphas=alphas,mort=mort,mpa=mpa) # Genetic load component
   dispersal<-Di*dNdx2(Ni=Ni,delx=delx) # Dispersal component
   popchange<-popdy+genload+dispersal
-  popchange[popchange<(-1*Ni+10^-6)]<-(-1*Ni[popchange<(-1*Ni+10^-6)]+10^-6)  # Checking if population density falls below Nmin
+  popchange[(Ni+popchange)<10^-6 | is.na(popchange)]<- -Ni[(Ni+popchange)<10^-6 | is.na(popchange)]+10^-6
+  #popchange[popchange<(-1*Ni+10^-6)]<-(-1*Ni[popchange<(-1*Ni+10^-6)]+10^-6)  # Checking if population density falls below Nmin
   return(popchange)
 }
 
@@ -284,7 +285,7 @@ dZbardt<-function(Zall,Nall)
   
   dZbar.dt<-eco+evo
   
-  return(list("dZbardt"=dZbar.dt,"Ecology"=eco,"Evolution"=evo,"props"=p_all))
+  return(list("dZbardt"=dZbar.dt,"Ecology"=abs(eco),"Evolution"=abs(evo),"props"=p_all))
   
 }
 
