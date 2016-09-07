@@ -160,13 +160,17 @@ dZdx2<-function(zi,delx)
 #   Nall:   Vector of abundances for all species
 #   mort:   Mortality rate
 #   mpa:    Effect of MPA on mortality rate of species
+#   mortality.model  Should constant or temperature varying
+#                     mortality be used?
 #==============================================================
-dGdZ2<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa)
+dGdZ2<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa,mortality.model)
 {
   hess.out<-rep(0,length(zi))
   for(h in 1:length(zi))
   {
-    hess.out[h]<-hessian(func=fitness.fun,x=zi[h],Nall=Nall[,h],rmax=rmax,TC=TC[h],w=w,alphas=alphas,mort=mort,mpa=mpa[h])
+    hess.out[h]<-hessian(func=fitness.fun,x=zi[h],Nall=Nall[,h],
+                         rmax=rmax,TC=TC[h],w=w,alphas=alphas,
+                         mort=mort,mpa=mpa[h],mortality.model=mortality.model)
   }
   return(hess.out)
 }
@@ -187,13 +191,18 @@ dGdZ2<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa)
 #   Nall:   Vector of abundances for all species
 #   mort:   Mortality rate
 #   mpa:    Effect of MPA on mortality rate of species
+#   mortality.model  Should constant or temperature varying
+#                     mortality be used?
 #==============================================================
-dGdZ<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa)
+dGdZ<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa,mortality.model)
 {
   grad.out<-rep(0,length(zi))
   for(h in 1:length(zi))
   {
-    grad.out[h]<-grad(func=fitness.fun,x=zi[h],rmax=rmax,TC=TC[h],Nall=Nall[,h],w=w,alphas=alphas,mort=mort,mpa=mpa[h],method="simple")
+    grad.out[h]<-grad(func=fitness.fun,x=zi[h],rmax=rmax,
+                      TC=TC[h],Nall=Nall[,h],w=w,alphas=alphas,
+                      mort=mort,mpa=mpa[h],
+                      mortality.model=mortality.model,method="simple")
   }
   return(grad.out)
 }
@@ -219,11 +228,18 @@ dGdZ<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa)
 #   mort:   Mortality rate
 #   Nall:   Vector of abundances for all species
 #   mpa:    Effect of MPA on mortality rate of species
+#   mortality.model  Should constant or temperature varying
+#                     mortality be used?
 #==============================================================
-dNdt<-function(Ni,V,zi,Di,TC,delx,rmax,w,alphas,mort,Nall,mpa)
+dNdt<-function(Ni,V,zi,Di,TC,delx,rmax,w,alphas,mort,Nall,mpa,
+               mortality.model)
 {
-  popdy<-Ni*fitness.fun(zi=zi,rmax=rmax,TC=TC,w=w,alphas=alphas,mort=mort,Nall=Nall,mpa=mpa) # Population dynamics component
-  genload<-.5*V*Ni*dGdZ2(zi=zi,rmax=rmax,TC=TC,w=w,Nall=Nall,alphas=alphas,mort=mort,mpa=mpa) # Genetic load component
+  popdy<-Ni*fitness.fun(zi=zi,rmax=rmax,TC=TC,w=w,alphas=alphas,
+                        mort=mort,Nall=Nall,mpa=mpa,
+                        mortality.model=mortality.model) # Population dynamics component
+  genload<-.5*V*Ni*dGdZ2(zi=zi,rmax=rmax,TC=TC,w=w,Nall=Nall,
+                         alphas=alphas,mort=mort,mpa=mpa,
+                         mortality.model=mortality.model) # Genetic load component
   dispersal<-Di*dNdx2(Ni=Ni,delx=delx) # Dispersal component
   popchange<-popdy+genload+dispersal
   popchange[(Ni+popchange)<10^-6 | is.na(popchange)]<- -Ni[(Ni+popchange)<10^-6 | is.na(popchange)]+10^-6
@@ -268,12 +284,17 @@ qfun<-function(Ni,Nmin=10^-6)
 #   Nall:   Vector of abundances for all species
 #   mpa:    Effect of MPA on mortality rate of species
 #   Nmin:   Minimum density allowed (required for log values)
+#   mortality.model  Should constant or temperature varying
+#                     mortality be used?
 #==============================================================  
-dZdt<-function(Ni,V,zi,Di,TC,delx,rmax,w,alphas,mort,Nall,mpa,Nmin)
-{               
+dZdt<-function(Ni,V,zi,Di,TC,delx,rmax,w,alphas,mort,Nall,mpa,Nmin,
+               mortality.mode)
+{ 
+  
   q<-qfun(Ni=Ni)
   directselect<-q*V*dGdZ(zi=zi,rmax=rmax,TC=TC,w=w,alphas=alphas,
-                               Nall=Nall,mort=mort,mpa=mpa)                     # Directional selection component
+                               Nall=Nall,mort=mort,mpa=mpa,
+                         mortality.model=mortality.model)                     # Directional selection component
   geneflow<-Di*(dZdx2(zi=zi,delx=delx)+2*dNdx(Ni=log(max(Ni,Nmin)),
                                              delx=delx)*dZdx(zi=zi,delx=delx))  # Gene flow component
   traitchange<-directselect+geneflow
@@ -294,6 +315,7 @@ dZdt<-function(Ni,V,zi,Di,TC,delx,rmax,w,alphas,mort,Nall,mpa,Nmin)
 #==============================================================
 dZbardt<-function(Zall,Nall)
 {
+  
   # Ecology component
   p_all<-t(t(Nall)/colSums(Nall))             # proportional densities for each species across time
   p_all.add<-cbind(p_all[,1],p_all)           # add a column at start of time series so that derivitive at
