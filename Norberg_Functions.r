@@ -27,6 +27,25 @@ growth.fun<-function(rmax,TC,zi,w)
 }
 
 #==============================================================
+# Mortality rate function proposed as an alternative to
+#   constant mortality rate from Norberg et al. Determines
+#   mortality rate as a function of species trait (optimum 
+#   temperature) and local environmental condition (reef
+#   temperature).
+# Parameters:
+#   TC:   Current temperature of reef
+#   zi:   Current optimum temperature for species
+#   w:    Temperature tolerance
+#==============================================================
+mortality.fun<-function(TC,zi,w)
+{
+  mixt<-1-exp((-1*(TC-zi)^2)/(w^2))
+  return(mixt)
+}
+
+
+
+#==============================================================
 # Fitness function (Equation (2) from supplemental material
 #   to Norberg et al. 2012). Determines fitness as a 
 #   function of local growth rate, mortality rate, and species
@@ -41,10 +60,14 @@ growth.fun<-function(rmax,TC,zi,w)
 #   Nall:   Vector of abundances for all species
 #   mort:   Mortality rate
 #   mpa:    Effect of MPA on mortality rate of species
+#   mortality.model  Should constant or temperature varying
+#                     mortality be used?
 #==============================================================
-fitness.fun<-function(zi,rmax,TC,w,alphas,Nall,mort,mpa)
+fitness.fun<-function(zi,rmax,TC,w,alphas,Nall,mort,mpa,
+                      mortality.model=c("constant","tempvary"))
 {
   rixt<-growth.fun(rmax=rmax,TC=TC,zi=zi,w=w)
+  if(mortality.model=="tempvary") mort<-mortality.fun(TC=TC,zi=zi,w=w)
   ints<-alphas*Nall
   if(is.null(dim(ints))) sum.ints<-sum(ints)
   else sum.ints<-apply(ints,MARGIN=2,sum)
