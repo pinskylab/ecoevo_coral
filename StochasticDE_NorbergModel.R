@@ -1,9 +1,9 @@
 source("Norberg_Functions.r")
 start.parms<-read.csv("Norberg_StartingParameters_test.csv",header=T)
-
-
+# Making A Change
+set.seed(3)
 nsp<-3                        # how many species in model?
-size<-50                      # how many reefs in model?
+size<-100                      # how many reefs in model?
 maxtime<-1000                   # how many time steps?
 times<-seq(0,maxtime,by=1)    # Vector from 1 to the number of time steps
 mid<-25                       # mean temperature across all reefs at start of simulation.
@@ -19,7 +19,7 @@ range<-5                      # range of temperatures across reefs at start of s
 #   - species names, then trait names, then temperature
 #==============================================================================
 temps<-generate.temps(size=size,mid=mid+3,range=range,temp.scenario="linear") 
-sppstate<-generate.state(size=size,nsp=nsp,dens=0.25)
+sppstate<-generate.state(size=size,nsp=nsp,dens=0.25,random=T)
 traitstate<-generate.traits(nsp=nsp,size=size,mid=mid,temps=temps,range=range,trait.scenario="perfect.adapt")
 allstate<-c(as.vector(t(sppstate)),as.vector(t(traitstate)),temps)
 
@@ -33,9 +33,9 @@ allnames<-c(paste("spp",seq(1,nsp),sep=""),paste("opt",seq(1,nsp),sep=""),"temps
 #   - For species where sptype=1, set mpa<=1
 #   - mpa will be multiplied by mortality rate
 #==============================================================================
-sptype<-c(rep(1,(nsp-1)),1)
-mpa<-matrix(rep(1,size*nsp),nrow=nsp,ncol=size,byrow=T)
-mpa[sptype==2,c((round(size/3)):(2*round(size/3)))]<-1.2
+species<-c("C","C","MA")
+mpa<-rep(0,size)
+mpa[c((round(size/3)):(2*round(size/3)))]<-1
 
 #==============================================================================
 # Define model parameters (# required)
@@ -60,12 +60,16 @@ parms<-list(
   V=c(t(start.parms[start.parms[,1]=="V",((1:nsp)+1)])),
   D=c(t(start.parms[start.parms[,1]=="D",((1:nsp)+1)])),
   rmax=c(t(start.parms[start.parms[,1]=="Rmax",((1:nsp)+1)])),
-  alphas=matrix(1,nrow=nsp,ncol=nsp),
+  #alphas=matrix(1,nrow=nsp,ncol=nsp),
+  #alphas=diag(1,nrow=nsp,ncol=nsp),
+  alphas=matrix(c(1,1.1,1,
+                  1,1,1,
+                  99,.99,1),nrow=nsp,ncol=nsp,byrow=T),
   m.normal=c(t(start.parms[start.parms[,1]=="M.normal",((1:nsp)+1)])),
   m.catastrophe=c(t(start.parms[start.parms[,1]=="M.catastrophe",((1:nsp)+1)])),
   w=c(t(start.parms[start.parms[,1]=="w",((1:nsp)+1)])),
   pcatastrophe=0.02,
-  
+  temp.stoch=.7,
   annual.temp.change=.02,
   maxtemp=30,
   Nmin=10^-6,
@@ -106,25 +110,29 @@ coral_trait_stoch<-function(t,y, parms,size,nsp,temp.change=c("const","linear","
       
       spps<-matrix(time.series[(1:(size*nsp)),k-1],nrow=nsp,ncol=size,byrow=T)   # Extract species density state values
       traits<-matrix(time.series[(size*nsp+1):(length(y)-size),k-1],nrow=nsp,ncol=size,byrow=T)  # Extract trait state values
-      temps<-time.series[(length(y)-(size-1)):length(y),k-1]  # Extract temperature state values
-      
-      pcat<-rbinom(1,1,pcatastrophe)           # Binomial draw for annual catastrophe occurance
-      m<-(1-pcat)*m.normal+pcat*m.catastrophe  # set annual mortality rate dependent on presence of catastrophe
-      
+      temps<-time.series[(length(y)-(size-1)):length(y),k-1]+stoch.temp*rnorm(size,0,temp.stoch) # Extract temperature state values
+#       
+#       pcat<-rbinom(1,1,pcatastrophe)           # Binomial draw for annual catastrophe occurance
+#       m<-(1-pcat)*m.normal+pcat*m.catastrophe  # set annual mortality rate dependent on presence of catastrophe
+#       
+      m<-m.normal
       dspp<-spps   # create storage for change in density state values
       dtraits<-traits # create storage for change in trait state values
       
       for(i in 1:nsp)
       { 
-        dspp[i,]<-dNdt(Ni=spps[i,],zi=traits[i,],Nall=spps,rmax=rmax[i],V=V[i],D=D[i],w=w[i],mort=m[i],TC=temps,alphas=alphas[i,],delx=1,mpa=mpa[i,])
-        dtraits[i,]<-dZdt(Ni=spps[i,],zi=traits[i,],Nall=spps,rmax=rmax[i],V=V[i],D=D[i],w=w[i],mort=m[i],TC=temps,alphas=alphas[i,],delx=1,mpa=mpa[i,],Nmin=Nmin)
+        dspp[i,]<-dNdt(Ni=spps[i,],zi=traits[i,],Nall=spps,rmax=rmax[i],V=V[i],D=D[i],w=w[i],
+                       mort=m[i],TC=temps,alphas=alphas[i,],delx=1,mpa=mpa,mortality.model="tempvary",spp=species[i])
+        dtraits[i,]<-dZdt(Ni=spps[i,],zi=traits[i,],Nall=spps,rmax=rmax[i],V=V[i],D=D[i],w=w[i],
+                          mort=m[i],TC=temps,alphas=alphas[i,],delx=1,mpa=mpa,Nmin=Nmin,
+                          mortality.model="tempvary",spp=species[i])
       }
       
       # Calculate change in temperatures across reef
       dtemps<-switch(temp.change,
                      const=rep(0,size),
                      linear=rep(annual.temp.change,size),
-                     sigmoid=rep((annual.temp.change*mean(temps)*(1-(mean(temps)/maxtemp))),size))+stoch.temp*rnorm(size,0,.1)
+                     sigmoid=rep((annual.temp.change*mean(temps)*(1-(mean(temps)/maxtemp))),size))
       
       dsp<-c(as.vector(t(dspp)),as.vector(t(dtraits)),dtemps) # concatenate changes in state back to single vector
       
@@ -141,7 +149,7 @@ coral_trait_stoch<-function(t,y, parms,size,nsp,temp.change=c("const","linear","
 }
 
 out<-coral_trait_stoch(t=maxtime,y=allstate, parms=parms,size=size,nsp=nsp,     # Runs the model and stores output as "out"
-                       temp.change="const",stoch.temp=F)
+                       temp.change="sigmoid",stoch.temp=T)
 
 
 
@@ -175,12 +183,12 @@ for(i in 1:(2*nsp+1))   # loop through each state variable
   if(i<=nsp){
     # Plot species densities (z) across time (x) and space (y)
     image(x=times,y=seq(1:size),z=t(out$ts[((i-1)*size+1):(i*size),]),col=imageCols(24),xlab="Time",
-          ylab="Location on Reef",main=all.labels[i],zlim=c(0,.8))
+          ylab="Location on Reef",main=all.labels[i],zlim=c(0,1))
   }
   else{
     # Plot species traits or local temperature (z) across time (x) and space (y)
     image(x=times,y=seq(1:size),z=t(out$ts[((i-1)*size+1):(i*size),]),col=imageCols(24),xlab="Time",
-          ylab="Location on Reef",main=all.labels[i],zlim=c(10,200))
+          ylab="Location on Reef",main=all.labels[i],zlim=c(20,40))
   }
 }
 

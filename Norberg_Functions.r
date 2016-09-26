@@ -20,9 +20,17 @@ library(numDeriv)
 #   zi:   Current optimum temperature for species
 #   w:    Temperature tolerance
 #==============================================================
-growth.fun<-function(rmax,TC,zi,w)
+growth.fun<-function(rmax,TC,zi,w,spp="C",growth="normal")
 {
-  rixt<-rmax*exp((-1*(TC-zi)^2)/(w^2))
+
+  rixt<-(rmax/sqrt(2*w^2*pi))*exp((-1*(TC-zi)^2)/(2*w^2))
+  if(growth=="Huey"){
+    CTmax<-zi+w
+    rixt[zi>=TC]<-(rmax/sqrt(2*w^2*pi))*(exp((-1*(TC-zi)^2)/(2*w)))[zi>=TC]
+    rixt[zi<TC]<-(rmax/sqrt(2*w^2*pi))*(1-((TC-zi)/(zi-CTmax))^2)[zi<TC]
+    for(i in 1:length(rixt)) rixt[i]<-max(0,rixt[i])
+  }
+  if(spp=="MA") rixt<-rep(1,length(zi))
   return(rixt)
 }
 
@@ -37,9 +45,19 @@ growth.fun<-function(rmax,TC,zi,w)
 #   zi:   Current optimum temperature for species
 #   w:    Temperature tolerance
 #==============================================================
-mortality.fun<-function(TC,zi,w)
+mortality.fun<-function(TC,zi,w,rmax=NA,spp="C",mpa,growth="normal")
 {
   mixt<-1-exp((-1*(TC-zi)^2)/(w^2))
+  if(growth=="Huey"& spp!="MA"){
+    CTmax<-zi+w
+    mixt[zi>=TC]<-(rmax/sqrt(2*w^2*pi)-(rmax/sqrt(2*w^2*pi))*(exp((-1*(TC-zi)^2)/(2*w))))[zi>=TC]
+    mixt[zi<TC]<-(1-(1-(rmax/sqrt(2*w^2*pi))*((TC-zi)/(zi-CTmax))^2))[zi<TC]
+    for(i in 1:length(mixt)) mixt[i]<-min(1,mixt[i])
+  }
+  if(spp=="MA"){
+    mixt[mpa==1] <- 0.3
+    mixt[mpa!=1] <- 0.05
+  }
   return(mixt)
 }
 
@@ -64,14 +82,14 @@ mortality.fun<-function(TC,zi,w)
 #                     mortality be used?
 #==============================================================
 fitness.fun<-function(zi,rmax,TC,w,alphas,Nall,mort,mpa,
-                      mortality.model=c("constant","tempvary"))
+                      mortality.model=c("constant","tempvary"),spp,growth="normal")
 {
-  rixt<-growth.fun(rmax=rmax,TC=TC,zi=zi,w=w)
-  if(mortality.model=="tempvary") mort<-mortality.fun(TC=TC,zi=zi,w=w)
+  rixt<-growth.fun(rmax=rmax,TC=TC,zi=zi,w=w,spp=spp,growth=growth)
+  if(mortality.model=="tempvary") mort<-mortality.fun(TC=TC,zi=zi,rmax=rmax,w=w,spp=spp,mpa=mpa,growth=growth)
   ints<-alphas*Nall
   if(is.null(dim(ints))) sum.ints<-sum(ints)
   else sum.ints<-apply(ints,MARGIN=2,sum)
-  gixt<-rixt*(1-sum.ints)-(mort*mpa)
+  gixt<-rixt*(1-sum.ints)-(mort)
   return(gixt)
 }
 
@@ -163,14 +181,14 @@ dZdx2<-function(zi,delx)
 #   mortality.model  Should constant or temperature varying
 #                     mortality be used?
 #==============================================================
-dGdZ2<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa,mortality.model)
+dGdZ2<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa,mortality.model,spp,growth="normal")
 {
   hess.out<-rep(0,length(zi))
   for(h in 1:length(zi))
   {
     hess.out[h]<-hessian(func=fitness.fun,x=zi[h],Nall=Nall[,h],
                          rmax=rmax,TC=TC[h],w=w,alphas=alphas,
-                         mort=mort,mpa=mpa[h],mortality.model=mortality.model)
+                         mort=mort,mpa=mpa[h],mortality.model=mortality.model,spp=spp,growth=growth)
   }
   return(hess.out)
 }
@@ -194,7 +212,7 @@ dGdZ2<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa,mortality.model)
 #   mortality.model  Should constant or temperature varying
 #                     mortality be used?
 #==============================================================
-dGdZ<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa,mortality.model)
+dGdZ<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa,mortality.model,spp,growth="normal")
 {
   grad.out<-rep(0,length(zi))
   for(h in 1:length(zi))
@@ -202,7 +220,7 @@ dGdZ<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa,mortality.model)
     grad.out[h]<-grad(func=fitness.fun,x=zi[h],rmax=rmax,
                       TC=TC[h],Nall=Nall[,h],w=w,alphas=alphas,
                       mort=mort,mpa=mpa[h],
-                      mortality.model=mortality.model,method="simple")
+                      mortality.model=mortality.model,method="simple",spp=spp,growth=growth)
   }
   return(grad.out)
 }
@@ -232,14 +250,14 @@ dGdZ<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa,mortality.model)
 #                     mortality be used?
 #==============================================================
 dNdt<-function(Ni,V,zi,Di,TC,delx,rmax,w,alphas,mort,Nall,mpa,
-               mortality.model)
+               mortality.model,spp,growth="normal")
 {
   popdy<-Ni*fitness.fun(zi=zi,rmax=rmax,TC=TC,w=w,alphas=alphas,
                         mort=mort,Nall=Nall,mpa=mpa,
-                        mortality.model=mortality.model) # Population dynamics component
+                        mortality.model=mortality.model,spp=spp,growth=growth) # Population dynamics component
   genload<-.5*V*Ni*dGdZ2(zi=zi,rmax=rmax,TC=TC,w=w,Nall=Nall,
                          alphas=alphas,mort=mort,mpa=mpa,
-                         mortality.model=mortality.model) # Genetic load component
+                         mortality.model=mortality.model,spp=spp,growth=growth) # Genetic load component
   dispersal<-Di*dNdx2(Ni=Ni,delx=delx) # Dispersal component
   popchange<-popdy+genload+dispersal
   popchange[(Ni+popchange)<10^-6 | is.na(popchange)]<- -Ni[(Ni+popchange)<10^-6 | is.na(popchange)]+10^-6
@@ -288,13 +306,13 @@ qfun<-function(Ni,Nmin=10^-6)
 #                     mortality be used?
 #==============================================================  
 dZdt<-function(Ni,V,zi,Di,TC,delx,rmax,w,alphas,mort,Nall,mpa,Nmin,
-               mortality.mode)
+               mortality.model,spp,growth="normal")
 { 
   
   q<-qfun(Ni=Ni)
   directselect<-q*V*dGdZ(zi=zi,rmax=rmax,TC=TC,w=w,alphas=alphas,
                                Nall=Nall,mort=mort,mpa=mpa,
-                         mortality.model=mortality.model)                     # Directional selection component
+                         mortality.model=mortality.model,spp=spp,growth=growth)                     # Directional selection component
   geneflow<-Di*(dZdx2(zi=zi,delx=delx)+2*dNdx(Ni=log(max(Ni,Nmin)),
                                              delx=delx)*dZdx(zi=zi,delx=delx))  # Gene flow component
   traitchange<-directselect+geneflow
@@ -360,7 +378,7 @@ generate.temps<-function(size,mid=25,range=5,temp.scenario=c("uniform","linear",
 {
   temps<-switch(temp.scenario,
                 uniform=rep(mid,size),
-                linear=seq((mid-(range/2)),(mid+range/2),length.out=size),
+                linear=seq((mid-(range)),(mid+range),length.out=size),
                 random=rnorm(size,mid,range/2))
   return(temps)
 }
@@ -391,7 +409,7 @@ generate.traits<-function(nsp,size,mid,range,temps,trait.scenario=c("u.const","p
                          "same.constant")){
     if(trait.scenario=="u.const")
     {
-      trts<-seq((mid-(range/2)),(mid+range/2),length.out=(nsp+2))[-c(1,nsp+2)]
+      trts<-seq((mid-(range/4)),(mid+range/4),length.out=(nsp+2))[-c(1,nsp+2)]
       traits<-matrix(trts,nrow=nsp,ncol=size,byrow=F)
     }
     
@@ -421,9 +439,12 @@ generate.traits<-function(nsp,size,mid,range,temps,trait.scenario=c("u.const","p
 #     size:  Size of the reef (number of cells)
 #     dens:  Starting density
 #======================================================================
-generate.state<-function(size,nsp,dens=.01)
+generate.state<-function(size,nsp,dens=.01,random=F)
 {
   state<-matrix(dens,nrow=nsp,ncol=size)
+  if(random){
+    state<-matrix(runif((nsp*size),10E-6,.33),nrow=nsp,ncol=size)
+  }
   return(state)
 }
 

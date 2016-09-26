@@ -1,8 +1,8 @@
-Trait,Weedy,Competitive,StressTolerant,Macroalgae,Notes
-V,1,1,2,1,
-D,0.3,0.1,0.2,0.1,
-w,2,2,2,5,
-Rmax,0.2,0.09,0.009,0.1,
-MPA,1,1,1,1.2,
-M.normal,0.02,0.01,0.001,0.04,
-M.catastrophe,0.15,0.14,0.004,0.04,
+Trait,Competitive,StressTolerant,Macroalgae,Weedy,Notes
+V,0.01,0.01,0,1,
+D,0.01,0.01,0.01,1,
+w,1,2,10,1,
+Rmax,8,8,8,1,
+MPA,1,1,1.2,1,
+M.normal,0.1,0.1,0.1,0.02,
+M.catastrophe,0.14,0.05,0.04,0.15,
