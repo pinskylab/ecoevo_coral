@@ -64,8 +64,7 @@ parms<-list(
                   1,1,1,
                   .99,.99,1),nrow=nsp,ncol=nsp,byrow=T),
   m=c(t(start.parms[start.parms[,1]=="M.normal",((1:nsp)+1)])),
-  m.normal=c(t(start.parms[start.parms[,1]=="M.normal",((1:nsp)+1)])),
-  m.catastrophe=c(t(start.parms[start.parms[,1]=="M.catastrophe",((1:nsp)+1)])),
+
   w=c(t(start.parms[start.parms[,1]=="w",((1:nsp)+1)])),
   pcatastrophe=0.02,
   

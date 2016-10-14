@@ -8,6 +8,14 @@
 #==============================================================
 library(deSolve)
 library(numDeriv)
+library(doSNOW)
+library(doParallel)
+library(foreach)
+library(rbenchmark)
+library(fitdistrplus)
+library(logitnorm)
+library(matrixcalc)
+library(mvtnorm)
 
 #==============================================================
 # Growth rate function (Equation (3) from supplemental material
@@ -30,7 +38,10 @@ growth.fun<-function(rmax,TC,zi,w,spp="C",growth="normal")
     rixt[zi<TC]<-(rmax/sqrt(2*w^2*pi))*(1-((TC-zi)/(zi-CTmax))^2)[zi<TC]
     for(i in 1:length(rixt)) rixt[i]<-max(0,rixt[i])
   }
-  if(spp=="MA") rixt<-rep(1,length(zi))
+  if(growth=="skew"){
+  rixt<-skew.norm(rmax,TC,zi,w)
+  }
+  if(spp=="MA") rixt<-rep(.49,length(zi))
   return(rixt)
 }
 
@@ -48,6 +59,8 @@ growth.fun<-function(rmax,TC,zi,w,spp="C",growth="normal")
 mortality.fun<-function(TC,zi,w,rmax=NA,spp="C",mpa,growth="normal")
 {
   mixt<-1-exp((-1*(TC-zi)^2)/(w^2))
+  mixt[zi>=TC]<-0
+  mixt[mixt<0.03]<-0.03
   if(growth=="Huey"& spp!="MA"){
     CTmax<-zi+w
     mixt[zi>=TC]<-(rmax/sqrt(2*w^2*pi)-(rmax/sqrt(2*w^2*pi))*(exp((-1*(TC-zi)^2)/(2*w))))[zi>=TC]
@@ -56,8 +69,9 @@ mortality.fun<-function(TC,zi,w,rmax=NA,spp="C",mpa,growth="normal")
   }
   if(spp=="MA"){
     mixt[mpa==1] <- 0.3
-    mixt[mpa!=1] <- 0.05
+    mixt[mpa!=1] <- runif(sum(mpa!=1),0.05,.3)
   }
+  #print(mixt)
   return(mixt)
 }
 
@@ -447,4 +461,120 @@ generate.state<-function(size,nsp,dens=.01,random=F)
   }
   return(state)
 }
+
+#=====================================================================
+# Function to calculate Shannon diversity 
+#
+#=====================================================================
+shannon.div<-function(N)
+{
+  sdiv<-0
+  for(i in 1:length(N))
+  {
+    sdiv<-sdiv+(N[i]*log(N[i]))
+  }
+  sdiv<--1*sdiv
+  return(sdiv)
+}
+
+#====================================================================
+# Gauss Error Function
+#====================================================================
+erf <- function(x) 2 * pnorm(x * sqrt(2)) - 1
+
+
+#===================================================================
+# Skew- Normal growth
+#===================================================================
+skew.norm<-function(rmax,TC,zi,w,lambda=-2.7)
+{
+  growth<-rmax*exp(-1*(TC-zi)^2/w^2)*(1+erf(lambda*(TC-zi)/w))
+  
+  return(growth)
+  
+}
+
+
+#===================================================================
+# Function to set MPA design relative to protection strategy
+#===================================================================
+setMPA<-function(temps,Nall,sptype,strategy=c("hot","cold","highcoral","lowcoral",
+                                              "portfolio","random","none"),size,amount=.2,
+                 priordata=NULL)
+{
+  mpa<-rep(0,size)
+  corals<-colSums(Nall[sptype==1,])
+  ncoral<-sum(sptype==1)
+  if(strategy=="hot")
+  {
+    ind<-order(temps,decreasing=TRUE)[1:(amount*size)]
+  }
+  if(strategy=="cold")
+  {
+    ind<-order(temps)[1:(amount*size)]
+  }
+  if(strategy=="highcoral")
+  {
+    ind<-order(corals,decreasing=TRUE)[1:(amount*size)]
+  }
+  if(strategy=="lowcoral")
+  {
+    ind<-order(corals)[1:(amount*size)]
+  }
+  if(strategy=="random")
+  {
+    ind<-sample(1:size,amount*size)
+  }
+  if(strategy=="portfolio")
+  {
+#     dat<-t(priordata[ncoral*size,(burnin/2+1):burnin])
+#     vcov.mat<-cov(dat)
+#     ind<-order(colSums(vcov.mat))[1:(size*amount)]    
+    ind<-eff.portfolio(Nall=priordata,sptype=sptype,size=size,amount=amount,
+                       burnin=burnin)
+    
+  }
+  if(strategy!="none") mpa[ind]<-1
+  return(mpa)
+}
+
+
+#=================================================================
+# Function to select an efficient portfolio
+#=================================================================
+eff.portfolio<-function(Nall,sptype=c(1,1,2),
+                        size,amount=.2,burnin,samples=1000)
+{
+  ncoral<-sum(sptype==1)
+  if(ncoral==2){
+    dat1<-Nall[(1:size),(burnin/2+1):burnin]
+    dat2<-Nall[(size+1):(2*size),(burnin/2+1):burnin]
+    dat<-dat1+dat2
+  }
+  if(ncoral!=2) stop("Need to add functionality to eff.portfolio beyond 2 coral species")
+  
+  ExR<-colMeans(t(dat))
+  VcovR<-cov(t(dat))
+  RtoS<-rep(NA,samples)
+  portfolios<-matrix(NA,nrow=samples,ncol=amount*size)
+  for(i in 1:samples)
+  {
+    w<-rep(0,size)
+    portfolio<-sample(1:size,amount*size,replace=F)
+    #print(portfolio)
+    w[sample(1:size,amount*size,replace=F)]<-1/(amount*size)
+    
+    Sig<-t(w)%*%VcovR%*%w
+
+    RtoS[i]<-(w%*%ExR)/Sig
+    portfolios[i,]<-portfolio
+  }
+  
+  best<-which(RtoS==max(RtoS))
+  #print(best)
+  return(portfolios[best,])  
+  
+}
+
+#eff.portfolio(Nall=tsout[[1]]$ExampleTimeSeries,size=60,burnin=1000)
 
