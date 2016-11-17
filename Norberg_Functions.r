@@ -16,6 +16,7 @@ library(fitdistrplus)
 library(logitnorm)
 library(matrixcalc)
 library(mvtnorm)
+library(mail)
 
 #==============================================================
 # Growth rate function (Equation (3) from supplemental material
@@ -41,7 +42,7 @@ growth.fun<-function(rmax,TC,zi,w,spp="C",growth="normal")
   if(growth=="skew"){
   rixt<-skew.norm(rmax,TC,zi,w)
   }
-  if(spp=="MA") rixt<-rep(.49,length(zi))
+  if(spp=="MA") rixt<-rep(.49,length(zi))*rmax
   return(rixt)
 }
 
@@ -265,7 +266,7 @@ dGdZ<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa,mortality.model,spp,growth="nor
 #==============================================================
 dNdt<-function(Ni,V,zi,Di,TC,delx,rmax,w,alphas,mort,Nall,mpa,
                mortality.model,spp,growth="normal")
-{
+{  
   popdy<-Ni*fitness.fun(zi=zi,rmax=rmax,TC=TC,w=w,alphas=alphas,
                         mort=mort,Nall=Nall,mpa=mpa,
                         mortality.model=mortality.model,spp=spp,growth=growth) # Population dynamics component
@@ -278,6 +279,53 @@ dNdt<-function(Ni,V,zi,Di,TC,delx,rmax,w,alphas,mort,Nall,mpa,
   #popchange[popchange<(-1*Ni+10^-6)]<-(-1*Ni[popchange<(-1*Ni+10^-6)]+10^-6)  # Checking if population density falls below Nmin
   return(popchange)
 }
+
+#==============================================================
+# Function to calculate the partial derivitive of density
+#   across time. Equation (1a) in the Norberg et al. 2012 
+#   supplemental material. 
+# Calls fitness.fun(), growth.fun(), dNdx(), dNdx2(), dGdZ2(),
+#   dGdZ()
+# Parameters:
+#   Ni:   vector of current densities foe species i
+#   V:    Genetic variation
+#   zi:   Vector of optimal temperatures for species i along 
+#             reef 
+#   Di:     Dispersal rate for species i
+#   TC:     Current temperature of reef
+#   delx: Interval across which to calculate derivitive for
+#           spatial derivitives
+#   rmax:   Maximum growth rate for species
+#   w:      Temperature tolerance
+#   alphas: Species interaction matrix
+#   mort:   Mortality rate
+#   Nall:   Vector of abundances for all species
+#   mpa:    Effect of MPA on mortality rate of species
+#   mortality.model  Should constant or temperature varying
+#                     mortality be used?
+#==============================================================
+dNdt.vec<-function(data.in,V,Di,delx,rmax,w,alphas,mort,mpa,
+                    mortality.model,spp,growth="normal")
+{
+  
+  Ni<-data.in[,1]
+  zi<-data.in[,2]
+  TC<-data.in[,3]
+  Nall<-data.in[,4:6]
+  
+  popdy<-Ni*fitness.fun(zi=zi,rmax=rmax,TC=TC,w=w,alphas=alphas,
+                        mort=mort,Nall=Nall,mpa=mpa,
+                        mortality.model=mortality.model,spp=spp,growth=growth) # Population dynamics component
+  genload<-.5*V*Ni*dGdZ2(zi=zi,rmax=rmax,TC=TC,w=w,Nall=Nall,
+                         alphas=alphas,mort=mort,mpa=mpa,
+                         mortality.model=mortality.model,spp=spp,growth=growth) # Genetic load component
+  dispersal<-Di*dNdx2(Ni=Ni,delx=delx) # Dispersal component
+  popchange<-popdy+genload+dispersal
+  popchange[(Ni+popchange)<10^-6 | is.na(popchange)]<- -Ni[(Ni+popchange)<10^-6 | is.na(popchange)]+10^-6
+  #popchange[popchange<(-1*Ni+10^-6)]<-(-1*Ni[popchange<(-1*Ni+10^-6)]+10^-6)  # Checking if population density falls below Nmin
+  return(popchange)
+}
+
 
 #==============================================================
 # Function to prevent directional selection of virtually
@@ -388,12 +436,13 @@ dZbardt<-function(Zall,Nall)
 #                       with mean equal to mid value, and sd equal to
 #                       half of range value.
 #======================================================================
-generate.temps<-function(size,mid=25,range=5,temp.scenario=c("uniform","linear","random"))
+generate.temps<-function(size,mid=25,range=2.5,temp.scenario=c("uniform","linear","random"))
 {
   temps<-switch(temp.scenario,
                 uniform=rep(mid,size),
                 linear=seq((mid-(range)),(mid+range),length.out=size),
-                random=rnorm(size,mid,range/2))
+                random=seq((mid-(range)),(mid+range),length.out=size)[sample(size,seq(1,size),replace=F)])
+  
   return(temps)
 }
 
@@ -500,7 +549,7 @@ skew.norm<-function(rmax,TC,zi,w,lambda=-2.7)
 #===================================================================
 setMPA<-function(temps,Nall,sptype,strategy=c("hot","cold","highcoral","lowcoral",
                                               "portfolio","random","none"),size,amount=.2,
-                 priordata=NULL)
+                 priordata=NULL,monitortime=20)
 {
   mpa<-rep(0,size)
   corals<-colSums(Nall[sptype==1,])
@@ -527,11 +576,8 @@ setMPA<-function(temps,Nall,sptype,strategy=c("hot","cold","highcoral","lowcoral
   }
   if(strategy=="portfolio")
   {
-#     dat<-t(priordata[ncoral*size,(burnin/2+1):burnin])
-#     vcov.mat<-cov(dat)
-#     ind<-order(colSums(vcov.mat))[1:(size*amount)]    
     ind<-eff.portfolio(Nall=priordata,sptype=sptype,size=size,amount=amount,
-                       burnin=burnin)
+                       monitortime = monitortime)
     
   }
   if(strategy!="none") mpa[ind]<-1
@@ -543,12 +589,13 @@ setMPA<-function(temps,Nall,sptype,strategy=c("hot","cold","highcoral","lowcoral
 # Function to select an efficient portfolio
 #=================================================================
 eff.portfolio<-function(Nall,sptype=c(1,1,2),
-                        size,amount=.2,burnin,samples=1000)
+                        size,amount=.2,monitortime,samples=1000)
 {
   ncoral<-sum(sptype==1)
+  maxtime<-ncol(Nall)
   if(ncoral==2){
-    dat1<-Nall[(1:size),(burnin/2+1):burnin]
-    dat2<-Nall[(size+1):(2*size),(burnin/2+1):burnin]
+    dat1<-Nall[(1:size),(maxtime-(monitortime-1)):maxtime]
+    dat2<-Nall[(size+1):(2*size),(maxtime-(monitortime-1)):maxtime]
     dat<-dat1+dat2
   }
   if(ncoral!=2) stop("Need to add functionality to eff.portfolio beyond 2 coral species")
@@ -576,5 +623,5 @@ eff.portfolio<-function(Nall,sptype=c(1,1,2),
   
 }
 
-#eff.portfolio(Nall=tsout[[1]]$ExampleTimeSeries,size=60,burnin=1000)
+
 

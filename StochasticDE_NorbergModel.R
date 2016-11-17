@@ -1,8 +1,8 @@
 source("Norberg_Functions.r")
 start.parm.mat<-read.csv("Norberg_StartingParameters_test.csv",header=T,row.names=1)
-scenarios<-read.csv("Norberg_StartingParameters_scenariolist.csv",header=T)
+scenarios<-read.csv("Norberg_StartingParameters_iterationlist.csv",header=T)
 #start.parms<-start.parm.mat
-start.parms<-matrix(scenarios[2,-1],nrow=5,ncol=3,byrow=F)
+start.parms<-matrix(scenarios[5,-1],nrow=5,ncol=3,byrow=F)
 colnames(start.parms)<-colnames(start.parm.mat)
 rownames(start.parms)<-rownames(start.parm.mat)
 
@@ -10,10 +10,12 @@ library(mvtnorm)
 
 
 # Making A Change
-set.seed(57)
+set.seed(5)
 nsp<-3                        # how many species in model?
-size<-25                      # how many reefs in model?
-maxtime<-1000                   # how many time steps?
+size<-60                      # how many reefs in model?
+maxtime<-1500 
+burnin<-maxtime
+runtime<-500# how many time steps?
 times<-seq(0,maxtime,by=1)    #Vector from 1 to the number of time steps
 mid<-28                       # mean temperature across all reefs at start of simulation.
 range<-5                      # range of temperatures across reefs at start of simulation
@@ -34,7 +36,9 @@ sds<-rep(.24,size)
 b<-sds%*%t(sds)
 spatialtemp<-b*ma
 
+anoms.burn<-matrix(rnorm(burnin,0,1.2),nrow=size,ncol=burnin,byrow=T)+matrix(rmvnorm(burnin,rep(0,size),spatialtemp),nrow=size,byrow=T)
 
+anoms.runs<-matrix(rnorm(runtime,0,1.2),nrow=size,ncol=runtime,byrow=T)+matrix(rmvnorm(runtime,rep(0,size),spatialtemp),nrow=size,byrow=T)
 #==============================================================================
 # Generate starting conditions and merge into single vector or use in ode.1D()
 #   - Temperatures (specify scenario)
@@ -84,7 +88,7 @@ mpa<-setMPA(temps=temps,Nall=sppstate,sptype=sptype,size=size,amount=0.2,strateg
 
 parms<-list(
   nsp=nsp,
-  
+  mpa=mpa,
   V=as.numeric(c(t(start.parms[rownames(start.parms)=="V",((1:nsp))]))),
   D=as.numeric(c(t(start.parms[rownames(start.parms)=="D",((1:nsp))]))),
   rmax=as.numeric(c(t(start.parms[rownames(start.parms)=="Rmax",((1:nsp))]))),
@@ -126,7 +130,7 @@ parms<-list(
 #====================================================================================
 
 coral_trait_stoch<-function(t,y, parms,size,nsp,temp.change=c("const","linear","sigmoid"),
-                            stoch.temp=TRUE){
+                            stoch.temp=TRUE,anoms){
   
   with(as.list(parms), {  # Load parameter values
     time.series<-matrix(NA,nrow=(2*nsp*size+size),ncol=t) # Create storage matrix for time series of state values at each location
@@ -139,7 +143,7 @@ coral_trait_stoch<-function(t,y, parms,size,nsp,temp.change=c("const","linear","
       
       spps<-matrix(time.series[(1:(size*nsp)),k-1],nrow=nsp,ncol=size,byrow=T)   # Extract species density state values
       traits<-matrix(time.series[(size*nsp+1):(length(y)-size),k-1],nrow=nsp,ncol=size,byrow=T)  # Extract trait state values
-      temps<-time.series[(length(y)-(size-1)):length(y),k-1]+rep(stoch.temp*rnorm(1,0,temp.stoch),size)+rmvnorm(1,rep(0,size),spatialtemp) # Extract temperature state values
+      temps<-time.series[(length(y)-(size-1)):length(y),k-1]+anoms[,k-1] # Extract temperature state values
       #print(temps)  
 #       pcat<-rbinom(1,1,pcatastrophe)           # Binomial draw for annual catastrophe occurance
 #       m<-(1-pcat)*m.normal+pcat*m.catastrophe  # set annual mortality rate dependent on presence of catastrophe
@@ -177,10 +181,164 @@ coral_trait_stoch<-function(t,y, parms,size,nsp,temp.change=c("const","linear","
 
   
 }
-
+start.time<-Sys.time()
 out<-coral_trait_stoch(t=maxtime,y=allstate, parms=parms,size=size,nsp=nsp,     # Runs the model and stores output as "out"
-                       temp.change="const",stoch.temp=T)
+                       temp.change="const",stoch.temp=T,anoms=anoms.burn)
+Sys.time()-start.time
 
+#   }
+# }
+
+temps<-out$ts[(2*nsp*size+1):(2*nsp*size+size),maxtime] 
+sppstate<-matrix(out$ts[1:(nsp*size),maxtime],nrow=nsp,ncol=size,byrow=T) 
+traitstate<-out$ts[(nsp*size+1):(2*nsp*size),maxtime] 
+allstate<-c(as.vector(t(sppstate)),as.vector(t(traitstate)),temps)
+
+allnames<-c(paste("spp",seq(1,nsp),sep=""),paste("opt",seq(1,nsp),sep=""),"temps")
+cols<-colorRampPalette(c("red","yellow","blue"))
+cols2<-c("dodgerblue","darkorange")
+strategies<-c("hot","cold","highcoral","lowcoral","portfolio","random","none") # Name different management strategies
+nstrat<-length(strategies)    
+mpa<-matrix(NA,nrow=size,ncol=7)
+out2<-array(NA,dim=c(420,500,7))
+for(i in 1:7)
+{
+  mpa[,i]<-setMPA(temps=temps,Nall=sppstate,sptype=sptype,size=size,amount=0.2,strategy=strategies[i],priordata=out$ts)
+  maxtime2<-500
+  
+  parms<-list(
+    nsp=nsp,
+    mpa=mpa[,i],
+    V=as.numeric(c(t(start.parms[rownames(start.parms)=="V",((1:nsp))]))),
+    D=as.numeric(c(t(start.parms[rownames(start.parms)=="D",((1:nsp))]))),
+    rmax=as.numeric(c(t(start.parms[rownames(start.parms)=="Rmax",((1:nsp))]))),
+    #  alphas=matrix(1,nrow=nsp,ncol=nsp),
+    #alphas=diag(1,nrow=nsp,ncol=nsp),
+    alphas=matrix(c(1,1.1,1,
+                    1,1,1,
+                    .8,.8,1),nrow=nsp,ncol=nsp,byrow=T),
+    m=as.numeric(c(t(start.parms[rownames(start.parms)=="M.normal",((1:nsp))]))),
+    
+    w=c(t(as.numeric(start.parms[rownames(start.parms)=="w",((1:nsp))]))),
+    pcatastrophe=0.02,
+    temp.stoch=1.2, #0.9 works great for constant temp
+    annual.temp.change=.011,
+    maxtemp=30,
+    Nmin=10^-6,
+    deltax=1,
+    spatialtemp=spatialtemp
+    
+  )
+  out2[,,i]<-coral_trait_stoch(t=runtime,y=allstate, parms=parms,size=size,nsp=nsp,     # Runs the model and stores output as "out"
+                         temp.change="sigmoid",stoch.temp=T,anoms=anoms.runs)$ts
+  
+  j<-1 # start counter
+#   while(j<=max(hard.corals)) # loop through the hard coral species and plot the average density across the reef through time
+#   {
+#                          
+#     lines(seq(1,runtime)+1500,(colSums(out$ts[((j-1)*size+1):(j*size),])/size),col=cols2[j],lwd=1)
+#     j<-j+1
+#   }
+# lines(seq(1,runtime)+1500,(colSums(out$ts[((1-1)*size+1):(max(hard.corals)*size),])/size),col=cols(7)[i],lwd=2) # Plot the total hard coral density across the reef through time
+  # 
+}
+
+
+hard.corals<-which(sptype==1) # Which of the species are hard corals?
+macro.algae<-which(sptype==2) # Which of the species are macroalgae?
+
+windows()  # opens graphics window
+layout(matrix(c(1,
+                2,
+                3,
+                4),nrow=4,ncol=1))  # Layout panels according to nsp
+par(mar=c(3,3,0,0))
+j<-1 # start counter
+
+plot(seq(1,maxtime),(colSums(out$ts[((1-1)*size+1):(max(hard.corals)*size),])/size),ylim=c(0,1),xlim=c(0,2000),
+     col="black",type="l",lwd=2) # Plot the total hard coral density across the reef through time
+   
+for(i in 1:7)
+{
+  
+  lines(seq(1,runtime)+1500,(colSums(out2[((1-1)*size+1):(max(hard.corals)*size),,i])/size),col=cols(7)[i],lwd=2) # Plot the total hard coral density across the reef through time
+  
+}
+legend("top",horiz=T,legend=strategies,lty=1,lwd=2,col=cols(7),bty="n",cex=2)
+
+
+plot(seq(1,maxtime),colMeans(out$ts[(6*size+1):(7*size),]),ylim=c(25,35),xlim=c(1,2000),type="l",lwd=2)
+#lines(seq(1,maxtime),colMeans(out$ts[(3*size+1):(4*size),]),col="darkorange",lty=2,lwd=2)
+weight.temps<-out$ts[(1*size+1):(2*size),]
+for(j in 1:1500)
+{
+  
+  
+  
+  weight.temps[,j]<-out$ts[(3*size+1):(4*size),j]*(out$ts[(1*size+1):(2*size),j]/(colSums(out$ts[(1*size+1):(2*size),])[j]))
+  
+  
+}
+
+lines(seq(1,maxtime),colSums(weight.temps),col="darkorange",lty=2,lwd=2)
+
+#lines(seq(1,maxtime),colMeans(out$ts[(4*size+1):(5*size),]),col="dodgerblue",lty=2)
+for(i in 1:7)
+{
+  weight.temps<-out2[(1*size+1):(2*size),,i]
+  for(j in 1:500)
+  {
+    
+    
+
+      weight.temps[,j]<-out2[(3*size+1):(4*size),j,i]*(out2[(1*size+1):(2*size),j,i]/(colSums(out2[(1*size+1):(2*size),,i])[j]))
+
+    
+  }
+  lines(seq(1,runtime)+1500,colMeans(out2[(6*size+1):(7*size),,i]),xlim=c(1,2000),lwd=2)
+#   lines(seq(1,runtime)+1500,colMeans(out2[(3*size+1):(4*size),,i]),col=cols(7)[i],lty=2,lwd=2)
+ # lines(seq(1,runtime)+1500,colMeans(out$ts[(4*size+1):(5*size),,i]),col="dodgerblue",lty=2)
+ lines(seq(1,runtime)+1500,colSums(weight.temps),col=cols(7)[i],lty=2,lwd=2)
+  
+}
+
+
+plot(seq(1,maxtime),colMeans(out$ts[(6*size+1):(7*size),]),ylim=c(25,35),xlim=c(1,2000),type="l",lwd=2)
+#lines(seq(1,maxtime),colMeans(out$ts[(3*size+1):(4*size),]),col="darkorange",lty=2)
+#lines(seq(1,maxtime),colMeans(out$ts[(4*size+1):(5*size),]),col="dodgerblue",lty=2,lwd=2)
+weight.temps<-out$ts[(1*size+1):(2*size),]
+for(j in 1:1500)
+{
+  
+  
+  
+  weight.temps[,j]<-out$ts[(4*size+1):(5*size),j]*(out$ts[(2*size+1):(3*size),j]/(colSums(out$ts[(2*size+1):(3*size),])[j]))
+  
+  
+}
+
+
+
+lines(seq(1,maxtime),colSums(weight.temps),col="dodgerblue",lty=2,lwd=2)
+
+for(i in 1:7)
+{
+  weight.temps<-out2[(4*size+1):(5*size),,i]
+  for(j in 1:500)
+  {
+
+      weight.temps[,j]<-out2[(4*size+1):(5*size),j,i]*(out2[(2*size+1):(3*size),j,i]/(colSums(out2[(2*size+1):(3*size),,i])[j]))
+
+  
+  }
+  lines(seq(1,runtime)+1500,colMeans(out2[(6*size+1):(7*size),,i]),ylim=c(25,30),xlim=c(1,2000),lwd=2)
+  #lines(seq(1,runtime)+1500,colMeans(out$ts[(3*size+1):(4*size),,i]),col="darkorange",lty=2)
+  #lines(seq(1,runtime)+1500,colMeans(out2[(4*size+1):(5*size),,i]),col=cols(7)[i],lty=2,lwd=2)
+  
+  lines(seq(1,runtime)+1500,colSums(weight.temps),col=cols(7)[i],lty=2,lwd=2)
+}
+
+image(mpa)
 
 time.s<-out$ts
 post.burn.sp1<-time.s[1:size,501:1000]
@@ -235,19 +393,19 @@ layout.switch<-switch(as.character(nsp),"1"=matrix(c(1,3,            # Determine
 
 all.labels<-c(paste("Coral",seq(1,nsp-1),"Density By Reef Location",sep=" "),"Macroalgae Density By Reef Location",
               paste("Coral",seq(1,nsp-1),"Trait By Reef Location",sep=" "),"Macroalgae Trait By Reef Location","Temperature")   # Vector of plot labels dependent on number of species
-
+out3<-cbind(out$ts,out2[,,3])
 windows() # opens graphics window
 layout(layout.switch)  # generates panel layout according to layout.switch above
 for(i in 1:(2*nsp+1))   # loop through each state variable
 {
   if(i<=nsp){
     # Plot species densities (z) across time (x) and space (y)
-    image(x=times,y=seq(1:size),z=t(out$ts[((i-1)*size+1):(i*size),]),col=imageCols(24),xlab="Time",
+    image(x=seq(1,2000),y=seq(1:size),z=t(out3[((i-1)*size+1):(i*size),]),col=imageCols(24),xlab="Time",
           ylab="Location on Reef",main=all.labels[i],zlim=c(0,1))
   }
   else{
     # Plot species traits or local temperature (z) across time (x) and space (y)
-    image(x=times,y=seq(1:size),z=t(out$ts[((i-1)*size+1):(i*size),]),col=imageCols(24),xlab="Time",
+    image(x=seq(1,2000),y=seq(1:size),z=t(out3[((i-1)*size+1):(i*size),]),col=imageCols(24),xlab="Time",
           ylab="Location on Reef",main=all.labels[i],zlim=c(20,40))
   }
 }
