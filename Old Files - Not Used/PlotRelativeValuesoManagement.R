@@ -9,11 +9,12 @@ str(tsoutRuns)
 rankcorals<-array(NA,dim=c(50,7,9))
 relcorals<-array(NA,dim=c(50,7,9))
 maxavcorals<-matrix(NA,nrow=50,ncol=9)
+logratcorals<-array(NA,dim=c(50,7,9))
 for(i in 1:9)
 {
   for(j in 1:50)
   {
-    subdat<-tsoutRuns[[i]][1:120,4,j,]
+    subdat<-tsoutRuns[[i]][1:120,1,j,]
     sp1<-subdat[1:60,]
     sp2<-subdat[61:120,]
     corals<-sp1+sp2
@@ -21,7 +22,7 @@ for(i in 1:9)
     maxavcorals[j,i]<-max(avcorals)
     relcorals[j,,i]<-avcorals/max(avcorals)
     rankcorals[j,,i]<-rank(avcorals)
-
+    logratcorals[j,,i]<-log(colMeans(sp1)/colMeans(sp2))
   }
   
 }
@@ -163,24 +164,53 @@ legend("center",bty="n",col=cols,legend=strategies,cex=3,horiz=T,pch=15)
 dev.off()
 
 
-times<-seq(1,2000)
-temps<-c(rep(27,1500),rep(0,500))
-annual.temp.change<-.02
-maxtemp<-30
-for(i in 1501:2000)
-{
-  temps[i]<-annual.temp.change*temps[i-1]*(1-(temps[i-1]/maxtemp))+temps[i-1]  
-  
-}
+# times<-seq(1,2000)
+# temps<-c(rep(27,1500),rep(0,500))
+# annual.temp.change<-.02
+# maxtemp<-30
+# for(i in 1501:2000)
+# {
+#   temps[i]<-annual.temp.change*temps[i-1]*(1-(temps[i-1]/maxtemp))+temps[i-1]  
+#   
+# }
+# 
+# temps2<-temps
+# for(i in 1:2000)
+# {
+#   if(i<=1500)  temps2[i]<-temps[i]+anoms.burn[1,i,1]
+#   if(i>1500) temps2[i]<-temps2[i]+anoms.runs[1,i-1500,1]
+# }
+# plot(times,temps,ylim=c(22,35),type="l",lwd=4,xlab="Year",ylab="Temperature",bty="l")
+# lines(times,temps2,lty=2,lwd=2,col="blue")
 
-temps2<-temps
-for(i in 1:2000)
+#windows()
+pdf("CoralSpLogRatsManagementStrategies.pdf",height=12,width=15)
+layout(matrix(c(1,0,2,0,3,
+                0,0,0,0,0,
+                4,0,5,0,6,
+                0,0,0,0,0,
+                7,0,8,0,9,
+                10,10,10,10,10),nrow=6,ncol=5,byrow=T),heights=c(1,.3,1,.3,1,.5),widths=c(1,.2,1,.2,1))
+par(oma=c(0,5,5,5))
+for(i in 1:9)
 {
-  if(i<=1500)  temps2[i]<-temps[i]+anoms.burn[1,i,1]
-  if(i>1500) temps2[i]<-temps2[i]+anoms.runs[1,i-1500,1]
+  par(mar=c(.1,.1,.1,.1),bg="white")
+  boxplot(logratcorals[,1:7,i],xlim=c(.5,7.5),col=cols,yaxs="i",yaxt="n",ylim=c(-15,15),xaxt="n",
+          frame=F,horizontal=F)
+  abline(h=0,lty=2)
+  axis(side=2, at=c(-10,0,10),labels=c("ST","Even","C"))
+
 }
-plot(times,temps,ylim=c(22,35),type="l",lwd=4,xlab="Year",ylab="Temperature",bty="l")
-lines(times,temps2,lty=2,lwd=2,col="blue")
+mtext(side=2,at=.25,outer=T,"D = .01",cex=2,line=2)
+mtext(side=2,at=.58,outer=T,"D = .001",cex=2,line=2)
+mtext(side=2,at=.91,outer=T,"D = 0",cex=2,line=2)
+mtext(side=3,at=.15,outer=T,"V = 0",cex=2,line=2)
+mtext(side=3,at=.5,outer=T,"V = .1",cex=2,line=2)
+mtext(side=3,at=.85,outer=T,"V = .4",cex=2,line=2)
+frame()
+legend("center",bty="n",col=cols,legend=strategies,cex=3,horiz=T,pch=15)
+dev.off()
+
 
 
 # Single panel as example
