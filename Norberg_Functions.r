@@ -3,9 +3,12 @@
 #    - Source this file at top of model script.
 #==============================================================
 
-#==============================================================
+# ==============================================================
 # Load necessary libraries
-#==============================================================
+# ==============================================================
+# install.packages(c("deSolve","numDeriv","doSNOW","doParallel","foreach",
+#                    "rbenchmark","fitdistrplus","logitnorm","matrixcalc",
+#                    "mvtnorm"))
 library(deSolve)
 library(numDeriv)
 library(doSNOW)
@@ -16,7 +19,7 @@ library(fitdistrplus)
 library(logitnorm)
 library(matrixcalc)
 library(mvtnorm)
-library(mail)
+#library(mail)
 
 #==============================================================
 # Growth rate function (Equation (3) from supplemental material
@@ -57,8 +60,9 @@ growth.fun<-function(rmax,TC,zi,w,spp="C",growth="normal")
 #   zi:   Current optimum temperature for species
 #   w:    Temperature tolerance
 #==============================================================
-mortality.fun<-function(TC,zi,w,rmax=NA,spp="C",mpa,growth="normal")
+mortality.fun<-function(TC,zi,w,rmax=NA,spp="C",mpa,growth="normal",almort)
 {
+  
   mixt<-1-exp((-1*(TC-zi)^2)/(w^2))
   mixt[zi>=TC]<-0
   mixt[mixt<0.03]<-0.03
@@ -69,9 +73,13 @@ mortality.fun<-function(TC,zi,w,rmax=NA,spp="C",mpa,growth="normal")
     for(i in 1:length(mixt)) mixt[i]<-min(1,mixt[i])
   }
   if(spp=="MA"){
+    # mixt<-rep(0,length(TC))
     mixt[mpa==1] <- 0.3
-    mixt[mpa!=1] <- runif(sum(mpa!=1),0.05,.3)
+    mixt[mpa!=1] <- almort[mpa!=1]
+
+    #return(mixt)
   }
+  #print("Coral")
   #print(mixt)
   return(mixt)
 }
@@ -100,7 +108,13 @@ fitness.fun<-function(zi,rmax,TC,w,alphas,Nall,mort,mpa,
                       mortality.model=c("constant","tempvary"),spp,growth="normal")
 {
   rixt<-growth.fun(rmax=rmax,TC=TC,zi=zi,w=w,spp=spp,growth=growth)
-  if(mortality.model=="tempvary") mort<-mortality.fun(TC=TC,zi=zi,rmax=rmax,w=w,spp=spp,mpa=mpa,growth=growth)
+  if(mortality.model=="tempvary"){
+
+    mort<-mortality.fun(TC=TC,zi=zi,rmax=rmax,w=w,spp=spp,mpa=mpa,
+                        growth=growth,almort=mort)
+    
+  } 
+
   ints<-alphas*Nall
   if(is.null(dim(ints))) sum.ints<-sum(ints)
   else sum.ints<-apply(ints,MARGIN=2,sum)
@@ -203,7 +217,7 @@ dGdZ2<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa,mortality.model,spp,growth="no
   {
     hess.out[h]<-hessian(func=fitness.fun,x=zi[h],Nall=Nall[,h],
                          rmax=rmax,TC=TC[h],w=w,alphas=alphas,
-                         mort=mort,mpa=mpa[h],mortality.model=mortality.model,spp=spp,growth=growth)
+                         mort=mort[h],mpa=mpa[h],mortality.model=mortality.model,spp=spp,growth=growth)
   }
   return(hess.out)
 }
@@ -234,7 +248,7 @@ dGdZ<-function(zi,rmax,TC,w,alphas,mort,Nall,mpa,mortality.model,spp,growth="nor
   {
     grad.out[h]<-grad(func=fitness.fun,x=zi[h],rmax=rmax,
                       TC=TC[h],Nall=Nall[,h],w=w,alphas=alphas,
-                      mort=mort,mpa=mpa[h],
+                      mort=mort[h],mpa=mpa[h],
                       mortality.model=mortality.model,method="simple",spp=spp,growth=growth)
   }
   return(grad.out)
@@ -441,7 +455,7 @@ generate.temps<-function(size,mid=25,range=2.5,temp.scenario=c("uniform","linear
   temps<-switch(temp.scenario,
                 uniform=rep(mid,size),
                 linear=seq((mid-(range)),(mid+range),length.out=size),
-                random=seq((mid-(range)),(mid+range),length.out=size)[sample(size,seq(1,size),replace=F)])
+                random=seq((mid-(range)),(mid+range),length.out=size)[sample(size=size,x=seq(1,size),replace=F)])
   
   return(temps)
 }
@@ -552,6 +566,7 @@ setMPA<-function(temps,Nall,sptype,strategy=c("hot","cold","highcoral","lowcoral
                  priordata=NULL,monitortime=20)
 {
   mpa<-rep(0,size)
+  if(amount==0) return(mpa)
   corals<-colSums(Nall[sptype==1,])
   ncoral<-sum(sptype==1)
   if(strategy=="hot")
@@ -561,6 +576,16 @@ setMPA<-function(temps,Nall,sptype,strategy=c("hot","cold","highcoral","lowcoral
   if(strategy=="cold")
   {
     ind<-order(temps)[1:(amount*size)]
+  }
+  if(strategy=="hotcold")
+  {
+    ind<-order(temps)[c((1:(amount*size/2)),(size:((size-amount*size/2+1))))]
+    
+  }
+  if(strategy=="space")
+  {
+   ind<-round(seq(1,size,length.out=amount*size)) 
+    
   }
   if(strategy=="highcoral")
   {
@@ -580,6 +605,11 @@ setMPA<-function(temps,Nall,sptype,strategy=c("hot","cold","highcoral","lowcoral
                        monitortime = monitortime)
     
   }
+  if(strategy=="portfolioGreedy")
+  {
+    ind<-greedyport(Nall=priordata,sptype=sptype,size=size,amount=amount,
+                   monitortime = monitortime)
+  }
   if(strategy!="none") mpa[ind]<-1
   return(mpa)
 }
@@ -588,8 +618,9 @@ setMPA<-function(temps,Nall,sptype,strategy=c("hot","cold","highcoral","lowcoral
 #=================================================================
 # Function to select an efficient portfolio
 #=================================================================
+
 eff.portfolio<-function(Nall,sptype=c(1,1,2),
-                        size,amount=.2,monitortime,samples=1000)
+                        size,amount=.2,monitortime,samples=100000)
 {
   ncoral<-sum(sptype==1)
   maxtime<-ncol(Nall)
@@ -602,26 +633,141 @@ eff.portfolio<-function(Nall,sptype=c(1,1,2),
   
   ExR<-colMeans(t(dat))
   VcovR<-cov(t(dat))
-  RtoS<-rep(NA,samples)
-  portfolios<-matrix(NA,nrow=samples,ncol=amount*size)
+  RtoSBest<-0
+  RtoSCurrent<-0
+  portfolios<-matrix(NA,nrow=2,ncol=amount*size)
   for(i in 1:samples)
   {
     w<-rep(0,size)
     portfolio<-sample(1:size,amount*size,replace=F)
     #print(portfolio)
-    w[sample(1:size,amount*size,replace=F)]<-1/(amount*size)
+    w[portfolio]<-1/(amount*size)
     
     Sig<-t(w)%*%VcovR%*%w
-
-    RtoS[i]<-(w%*%ExR)/Sig
-    portfolios[i,]<-portfolio
+    
+    RtoSCurrent<-(w%*%ExR)/Sig
+    portfolios[2,]<-portfolio
+    if(RtoSCurrent>RtoSBest|i==1)
+    {
+      portfolios[1,]<-portfolio
+      RtoSBest<-RtoSCurrent
+    }
   }
   
-  best<-which(RtoS==max(RtoS))
+  # best<-which(RtoS==max(RtoS))
   #print(best)
-  return(portfolios[best,])  
+  return(portfolios[1,])  
+  
+
+}
+
+
+greedyport<-function(Nall,sptype=c(1,1,2),
+                    size,amount=.2,monitortime)
+{
+  
+  ncoral<-sum(sptype==1)
+  maxtime<-ncol(Nall)
+  if(ncoral==2){
+    dat1<-Nall[(1:size),(maxtime-(monitortime-1)):maxtime]
+    dat2<-Nall[(size+1):(2*size),(maxtime-(monitortime-1)):maxtime]
+    dat<-dat1+dat2
+  }
+  if(ncoral!=2) stop("Need to add functionality to eff.portfolio beyond 2 coral species")
+  
+  ExR<-colMeans(t(dat))
+  VcovR<-cov(t(dat))
+  RtoSBest<-0
+  RtoSCurrent<-0
+  portfolioCurr<-0
+  portfolioBest<-0
+  
+  pcombs<-combn(size,2)
+  for(j in 1:ncol(pcombs))
+  {
+    portfolio<-pcombs[,j]
+    w<-rep(0,size)
+    #portfolio<-sample(1:size,amount*size,replace=F)
+    #print(portfolio)
+    w[portfolio]<-1/(amount*size)
+    
+    Sig<-t(w)%*%VcovR%*%w
+    
+    RtoSCurrent<-(w%*%ExR)/Sig
+    portfolioCurr<-portfolio
+    if(RtoSCurrent>RtoSBest|j==1)
+    {
+      portfolioBest<-portfolioCurr
+      RtoSBest<-RtoSCurrent
+    }
+  }
+  k<-2
+  
+  while(k<(amount*size))
+  {
+    portfolioLast<-portfolioBest
+    RtoSLast<-RtoSBest
+    remainingsites<-(1:size)[-c(portfolioBest)]
+    for(z in remainingsites)
+    {
+      portfolio<-c(portfolioLast,z)
+
+      w<-rep(0,size)
+      #portfolio<-sample(1:size,amount*size,replace=F)
+      #print(portfolio)
+      w[portfolio]<-1/(amount*size)
+      #print(w)
+      Sig<-t(w)%*%VcovR%*%w
+      #print(Sig)
+      RtoSCurrent<-(w%*%ExR)/Sig
+      #print(RtoSCurrent)
+      portfolioCurr<-portfolio
+      if(RtoSCurrent>RtoSBest|z==remainingsites[1])
+      {
+        portfolioBest<-portfolioCurr
+        RtoSBest<-RtoSCurrent
+        
+      }
+      
+    }
+
+    k<-k+1
+  }
+  
+
+  
+  return(portfolioBest)
+  
   
 }
+
+
+
+#====================================================================
+# Function to denote extinctions across entirety of reef
+# Parameters:
+#   Nall: matrix of species densities across space and time
+#   nsp: number of species
+#   threshold: Extinction threshold
+#====================================================================
+extinctrisk<-function(Nall,nsp=3,threshold=.001,size)
+{
+  sp.extinct<-rep(NA,nsp)
+  for(i in 1:(nsp))
+  {
+    print(length(Nall[i,]))
+    spdat<-sum(Nall[i,]<threshold)
+    sp.extinct[i]<-spdat==size
+  }
+  return(sp.extinct)
+}
+
+extinctrisk2<-function(Nall,nsp=3,threshold=.001)
+{
+  sp.extinct<-apply(Nall,MARGIN=1,FUN=mean)<threshold
+  return(sp.extinct)
+}
+
 
 
 

@@ -19,7 +19,10 @@ runtime<-500# how many time steps?
 times<-seq(0,maxtime,by=1)    #Vector from 1 to the number of time steps
 mid<-28                       # mean temperature across all reefs at start of simulation.
 range<-5                      # range of temperatures across reefs at start of simulation
-
+MPAamount<-0.2
+cgrow<-1
+agrow<-1
+tempchange<-2
 
 mdim<-size
 lindec<-exp(seq(0,-6,length=mdim))#rev(seq(-0.9,1,length=mdim))
@@ -65,7 +68,7 @@ allnames<-c(paste("spp",seq(1,nsp),sep=""),paste("opt",seq(1,nsp),sep=""),"temps
 #==============================================================================
 species<-c("C1","C2","MA")
 sptype<-c(1,1,2)
-mpa<-setMPA(temps=temps,Nall=sppstate,sptype=sptype,size=size,amount=0.2,strategy="none")
+mpa<-setMPA(temps=temps,Nall=sppstate,sptype=sptype,size=size,amount=MPAamount,strategy="none")
 # mpa<-rep(0,size)
 # mpa[c((round(size/3)):(2*round(size/3)))]<-1
 
@@ -91,7 +94,7 @@ parms<-list(
   mpa=mpa,
   V=as.numeric(c(t(start.parms[rownames(start.parms)=="V",((1:nsp))]))),
   D=as.numeric(c(t(start.parms[rownames(start.parms)=="D",((1:nsp))]))),
-  rmax=as.numeric(c(t(start.parms[rownames(start.parms)=="Rmax",((1:nsp))]))),
+  rmax=c(cgrow,cgrow,agrow)*as.numeric(c(t(start.parms[rownames(start.parms)=="Rmax",((1:nsp))]))),
 #  alphas=matrix(1,nrow=nsp,ncol=nsp),
   #alphas=diag(1,nrow=nsp,ncol=nsp),
    alphas=matrix(c(1,1.1,1,
@@ -103,7 +106,7 @@ parms<-list(
   pcatastrophe=0.02,
   temp.stoch=1.2, #0.9 works great for constant temp
   annual.temp.change=.011,
-  maxtemp=30,
+  maxtemp=mid+tempchange,
   Nmin=10^-6,
   deltax=1,
   spatialtemp=spatialtemp
@@ -203,7 +206,7 @@ mpa<-matrix(NA,nrow=size,ncol=7)
 out2<-array(NA,dim=c(420,500,7))
 for(i in 1:7)
 {
-  mpa[,i]<-setMPA(temps=temps,Nall=sppstate,sptype=sptype,size=size,amount=0.2,strategy=strategies[i],priordata=out$ts)
+  mpa[,i]<-setMPA(temps=temps,Nall=sppstate,sptype=sptype,size=size,amount=MPAamount,strategy=strategies[i],priordata=out$ts)
   maxtime2<-500
   
   parms<-list(
@@ -211,7 +214,7 @@ for(i in 1:7)
     mpa=mpa[,i],
     V=as.numeric(c(t(start.parms[rownames(start.parms)=="V",((1:nsp))]))),
     D=as.numeric(c(t(start.parms[rownames(start.parms)=="D",((1:nsp))]))),
-    rmax=as.numeric(c(t(start.parms[rownames(start.parms)=="Rmax",((1:nsp))]))),
+    rmax=c(cgrow,cgrow,agrow)*as.numeric(c(t(start.parms[rownames(start.parms)=="Rmax",((1:nsp))]))),
     #  alphas=matrix(1,nrow=nsp,ncol=nsp),
     #alphas=diag(1,nrow=nsp,ncol=nsp),
     alphas=matrix(c(1,1.1,1,
@@ -223,7 +226,7 @@ for(i in 1:7)
     pcatastrophe=0.02,
     temp.stoch=1.2, #0.9 works great for constant temp
     annual.temp.change=.011,
-    maxtemp=30,
+    maxtemp=mid+tempchange,
     Nmin=10^-6,
     deltax=1,
     spatialtemp=spatialtemp
@@ -339,6 +342,26 @@ for(i in 1:7)
 }
 
 image(mpa)
+
+# add log ratio plot
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 time.s<-out$ts
 post.burn.sp1<-time.s[1:size,501:1000]
