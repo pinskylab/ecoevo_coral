@@ -6,9 +6,7 @@
 # ==============================================================
 # Load necessary libraries
 # ==============================================================
-# install.packages(c("deSolve","numDeriv","doSNOW","doParallel","foreach",
-#                    "rbenchmark","fitdistrplus","logitnorm","matrixcalc",
-#                    "mvtnorm"))
+
 library(deSolve)
 library(numDeriv)
 library(doSNOW)
@@ -19,7 +17,7 @@ library(fitdistrplus)
 library(logitnorm)
 library(matrixcalc)
 library(mvtnorm)
-#library(mail)
+
 
 #==============================================================
 # Growth rate function (Equation (3) from supplemental material
@@ -73,14 +71,12 @@ mortality.fun<-function(TC,zi,w,rmax=NA,spp="C",mpa,growth="normal",almort)
     for(i in 1:length(mixt)) mixt[i]<-min(1,mixt[i])
   }
   if(spp=="MA"){
-    # mixt<-rep(0,length(TC))
+    
     mixt[mpa==1] <- 0.3
     mixt[mpa!=1] <- almort[mpa!=1]
 
-    #return(mixt)
   }
-  #print("Coral")
-  #print(mixt)
+
   return(mixt)
 }
 
@@ -290,7 +286,7 @@ dNdt<-function(Ni,V,zi,Di,TC,delx,rmax,w,alphas,mort,Nall,mpa,
   dispersal<-Di*dNdx2(Ni=Ni,delx=delx) # Dispersal component
   popchange<-popdy+genload+dispersal
   popchange[(Ni+popchange)<10^-6 | is.na(popchange)]<- -Ni[(Ni+popchange)<10^-6 | is.na(popchange)]+10^-6
-  #popchange[popchange<(-1*Ni+10^-6)]<-(-1*Ni[popchange<(-1*Ni+10^-6)]+10^-6)  # Checking if population density falls below Nmin
+  
   return(popchange)
 }
 
@@ -336,7 +332,7 @@ dNdt.vec<-function(data.in,V,Di,delx,rmax,w,alphas,mort,mpa,
   dispersal<-Di*dNdx2(Ni=Ni,delx=delx) # Dispersal component
   popchange<-popdy+genload+dispersal
   popchange[(Ni+popchange)<10^-6 | is.na(popchange)]<- -Ni[(Ni+popchange)<10^-6 | is.na(popchange)]+10^-6
-  #popchange[popchange<(-1*Ni+10^-6)]<-(-1*Ni[popchange<(-1*Ni+10^-6)]+10^-6)  # Checking if population density falls below Nmin
+  
   return(popchange)
 }
 
@@ -640,7 +636,7 @@ eff.portfolio<-function(Nall,sptype=c(1,1,2),
   {
     w<-rep(0,size)
     portfolio<-sample(1:size,amount*size,replace=F)
-    #print(portfolio)
+    
     w[portfolio]<-1/(amount*size)
     
     Sig<-t(w)%*%VcovR%*%w
@@ -654,8 +650,7 @@ eff.portfolio<-function(Nall,sptype=c(1,1,2),
     }
   }
   
-  # best<-which(RtoS==max(RtoS))
-  #print(best)
+
   return(portfolios[1,])  
   
 
@@ -687,8 +682,7 @@ greedyport<-function(Nall,sptype=c(1,1,2),
   {
     portfolio<-pcombs[,j]
     w<-rep(0,size)
-    #portfolio<-sample(1:size,amount*size,replace=F)
-    #print(portfolio)
+
     w[portfolio]<-1/(amount*size)
     
     Sig<-t(w)%*%VcovR%*%w
@@ -713,14 +707,13 @@ greedyport<-function(Nall,sptype=c(1,1,2),
       portfolio<-c(portfolioLast,z)
 
       w<-rep(0,size)
-      #portfolio<-sample(1:size,amount*size,replace=F)
-      #print(portfolio)
+
       w[portfolio]<-1/(amount*size)
-      #print(w)
+      
       Sig<-t(w)%*%VcovR%*%w
-      #print(Sig)
+      
       RtoSCurrent<-(w%*%ExR)/Sig
-      #print(RtoSCurrent)
+
       portfolioCurr<-portfolio
       if(RtoSCurrent>RtoSBest|z==remainingsites[1])
       {

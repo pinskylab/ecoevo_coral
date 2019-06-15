@@ -1,12 +1,3 @@
-library("RStudioAMI")
-
-passwd()
-
-linkDropbox()
-
-excludeSyncDropbox("*")
-includeSyncDropbox("AWS EcoEvoCoral")
-
 install.packages(c("foreach","doParallel","deSolve","numDeriv","rbenchmark",
                    "doSNOW","fitdistrplus","logitnorm","matrixcalc","mvtnorm",
                    "mail"))
@@ -29,7 +20,7 @@ mid<-27                       # mean temperature across all reefs at start of si
 range<-5                      # range of temperatures across reefs at start of simulation
 sptype<-c(1,1,2) 
 species<-c("C1","C2","MA")
-iterations<-50 # Number of stochastic iterations
+iterations<-100 # Number of stochastic iterations
 monitor.yrs<-c(20,50,100,500)
 coralgrowth<-1
 algaegrowth<-1
@@ -68,7 +59,6 @@ for(i in 1:50)
 cl<-makeCluster(9,outfile="BurnModelOutput110116.txt")
 registerDoParallel(cl)
 timestart<-Sys.time()
-#tsout<-foreach(qqq=1:nrow(scenarios),.packages=c("deSolve","numDeriv","mvtnorm")) %dopar%{
 tsout2<-foreach(qqq=1:9,.packages=c("deSolve","numDeriv","mvtnorm")) %dopar%{
 
   start.parms<-matrix(scenarios[qqq,][-c(1,ncol(scenarios))],nrow=5,ncol=3,byrow=F) # fill start.parms matrix from scenarios file
@@ -115,7 +105,6 @@ for(i in 1:9)
 cl<-makeCluster(9,outfile="RunModelOutput110116.txt")
 registerDoParallel(cl)
 timestart<-Sys.time()
-#tsout<-foreach(qqq=1:nrow(scenarios),.packages=c("deSolve","numDeriv","mvtnorm")) %dopar%{
 tsoutRuns<-foreach(qqq=1:9,.packages=c("deSolve","numDeriv","mvtnorm")) %dopar%{
   newdat<-array(NA,dim=c(nrow(tsout2[[1]][[1]]$ts),ncol(tsout2[[1]][[1]]$ts),iterations))
   
@@ -152,21 +141,16 @@ runMod<-function(q,niter,burnin,runtime,spatialtemp,monitor.yrs,
                  size,nsp,sptype,species,mid,range)
 { 
 
-  #print("Yo")
+
   strategies<-c("hot","cold","highcoral","lowcoral","portfolio","random","none") # Name different management strategies
   nstrat<-length(strategies)      
-  #stoch.time.series<-matrix(data=NA,nrow=(2*nsp*size+size),ncol=maxtime) # Create storage matrix for time series of state values at each location
-#   output.list<-list("C1"=matrix(NA,nrow=nstrat,ncol=(length(monitor.yrs)*2)),"C2"=matrix(NA,nrow=nstrat,ncol=(length(monitor.yrs)*2)),
-#                     "Call"=matrix(NA,nrow=nstrat,ncol=(length(monitor.yrs)*2)),"MA"=matrix(NA,nrow=nstrat,ncol=(length(monitor.yrs)*2)),"Shannon"=matrix(NA,nrow=nstrat,ncol=(length(monitor.yrs)*2)))
-    #print("A")
+
   if(burnonly==T)
   {
-    #   set.seed(seeds[q])
-    #set.seed(iters)
-    #set.seed(1)
+
     maxtime1<-burnin              # how many time steps?
     times<-seq(0,maxtime1,by=1)   # Vector from 1 to the number of time steps
-    #print("B")
+
     #==============================================================================
     # Generate starting conditions and merge into single vector or use in ode.1D()
     #   - Temperatures (specify scenario)
@@ -191,8 +175,7 @@ runMod<-function(q,niter,burnin,runtime,spatialtemp,monitor.yrs,
     }
     allstate<-rbind(sppstate,traitstate,temps)
     
-    #allnames<-c(paste("spp",seq(1,nsp),sep=""),paste("opt",seq(1,nsp),sep=""),"temps")
-    #print("C")
+
     #==============================================================================
     # What types of species (will they be protected by an MPA?)
     #   - Set species that are protected by MPA to sptype=1
@@ -226,15 +209,14 @@ runMod<-function(q,niter,burnin,runtime,spatialtemp,monitor.yrs,
     
     parms<-list(
       nsp=nsp,
-      #mpa=mpa,
+
       monitor.yrs<-monitor.yrs,
       species=species,
       sptype=sptype,
       V=as.numeric(c(t(start.parms[rownames(start.parms)=="V",((1:nsp))]))),
       D=as.numeric(c(t(start.parms[rownames(start.parms)=="D",((1:nsp))]))),
       rmax=c(cgrow,cgrow,agrow)*as.numeric(c(t(start.parms[rownames(start.parms)=="Rmax",((1:nsp))]))),
-      #  alphas=matrix(1,nrow=nsp,ncol=nsp),
-      #alphas=diag(1,nrow=nsp,ncol=nsp),
+
       alphas=matrix(c(1,1.1,1,
                       1,1,1,
                       .8,.8,1),nrow=nsp,ncol=nsp,byrow=T),
@@ -242,7 +224,7 @@ runMod<-function(q,niter,burnin,runtime,spatialtemp,monitor.yrs,
       
       w=c(t(as.numeric(start.parms[rownames(start.parms)=="w",((1:nsp))]))),
       pcatastrophe=0.02,
-      temp.stoch=1, #0.9 works great for constant temp
+      temp.stoch=1, 
       annual.temp.change=.011,
       maxtemp=30,
       Nmin=10^-6,
@@ -251,7 +233,6 @@ runMod<-function(q,niter,burnin,runtime,spatialtemp,monitor.yrs,
       
     )
     
-    #print("D")
     start.time<-Sys.time()
     out1<-apply(allstate,MARGIN=2,FUN=coral_trait_stoch.vec,t=maxtime1,parms=parms,size=size,nsp=nsp,     # Runs the model and stores output as "out"
                 temp.change="const",stoch.temp=T,burn=T,anoms=anoms.burn)
@@ -260,36 +241,28 @@ runMod<-function(q,niter,burnin,runtime,spatialtemp,monitor.yrs,
     
   }
     
-    
-    #print("BurnCheck")
-    #print(out$ts[1,maxtime])
+
   if(burnonly==F)
   {
-    #print("RunCheck")
+
     maxtime<-runtime                   # how many time steps?
     times<-seq(0,maxtime,by=1)    #Vector from 1 to the number of time steps
     output.array<-array(NA,dim=c(dim(priordata)[1],length(monitor.yrs),niter,nstrat))
-    #temps<-generate.temps(size=size,mid=mid,range=range,temp.scenario="linear") 
+     
     temps<-priordata[(2*nsp*size+1):((2*nsp+1)*size),dim(priordata)[2],]
-    #print(temps)
-    #sppstate<-out1$ts[(1:(nsp*size)),maxtime1]
+
     sppstate<-priordata[1:(nsp*size),dim(priordata)[2],]
-    #print("SPPCheck")
-    #traitstate<-out1$ts[(nsp*size+1):(2*nsp*size),maxtime1]
+   
     traitstate<-priordata[(nsp*size+1):(2*nsp*size),dim(priordata)[2],]
-    #print("TraitCheck")
+
     allstate1<-rbind(sppstate,traitstate,temps)
-    #print("RBINDCheck")
-    #allnames<-c(paste("spp",seq(1,nsp),sep=""),paste("opt",seq(1,nsp),sep=""),"temps")
-    
+
     for(strategy in 1:nstrat)
     {
       mpa<-mpasetuse[,strategy,]
-      print(strategy)
-      #print(dim(allstate1))
-      #print("MPACheck")
+
       allstate<-rbind(allstate1,mpa,seq(1,niter))
-     # print(dim(allstate))
+
       #==============================================================================
       # Define model parameters (# required)
       #   - nsp: Number of Species (1)
@@ -309,15 +282,13 @@ runMod<-function(q,niter,burnin,runtime,spatialtemp,monitor.yrs,
       
       parms<-list(
         nsp=nsp,
-        #mpa=mpa,
+
         monitor.yrs<-monitor.yrs,
         species=species,
         sptype=sptype,
         V=as.numeric(c(t(start.parms[rownames(start.parms)=="V",((1:nsp))]))),
         D=as.numeric(c(t(start.parms[rownames(start.parms)=="D",((1:nsp))]))),
         rmax=c(cgrow,cgrow,agrow)*as.numeric(c(t(start.parms[rownames(start.parms)=="Rmax",((1:nsp))]))),
-        # alphas=matrix(1,nrow=nsp,ncol=nsp),
-        # alphas=diag(1,nrow=nsp,ncol=nsp),
         alphas=matrix(c(1,1.1,1,
                         1,1,1,
                         .8,.8,1),nrow=nsp,ncol=nsp,byrow=T),
@@ -325,46 +296,22 @@ runMod<-function(q,niter,burnin,runtime,spatialtemp,monitor.yrs,
         
         w=c(t(as.numeric(start.parms[rownames(start.parms)=="w",((1:nsp))]))),
         pcatastrophe=0.02,
-        temp.stoch=1, #0.9 works great for constant temp
+        temp.stoch=1, 
         annual.temp.change=.011,
         maxtemp=30,
         Nmin=10^-6,
         deltax=1,
         spatialtemp=spatialtemp
       )
-      #print(allstate[,1])
-      #print("E")
-#       out<-coral_trait_stoch(t=maxtime,y=allstate, parms=parms,size=size,nsp=nsp,     # Runs the model and stores output as "out"
-#                              temp.change="sigmoid",stoch.temp=T,burn=F,anoms=anoms.runs)
-      print("yo")
+  
       out<-apply(allstate,MARGIN=2,FUN=coral_trait_stoch.vec,t=maxtime,parms=parms,size=size,nsp=nsp,     # Runs the model and stores output as "out"
                   temp.change="sigmoid",stoch.temp=T,burn=F,anoms=anoms.runs)
-      print("woo")
+
       for(iter in 1:niter)
       {
         output.array[,,iter,strategy]<-out[[iter]]$ts
       }
-      #if(strategy==1) output.list$ExampleTimeSeries[,]<-out$ts
       
-      #       c1means<-colMeans(out$ts[1:size,])[monitor.yrs]
-      #       c2means<-colMeans(out$ts[(1+size):(2*size),])[monitor.yrs]
-      #       callmeans<-c1means+c2means
-      #       mameans<-colMeans(out$ts[(2*size+1):(3*size),])[monitor.yrs]
-      #       
-      #       c1sd<-apply(out$ts[1:size,],MARGIN=2,FUN=sd)[monitor.yrs]
-      #       c2sd<-apply(out$ts[(1+size):(2*size),],MARGIN=2,FUN=sd)[monitor.yrs]
-      #       callsd<-apply((out$ts[1:(size),]+out$ts[(size+1):(2*size),]),MARGIN=2,FUN=sd)[monitor.yrs]
-      #       masd<-apply(out$ts[(2*size+1):(3*size),],MARGIN=2,FUN=sd)[monitor.yrs]
-      #       
-      #       output.list$C1[strategy,seq(1,2*length(monitor.yrs)-1,by=2)]<-c1means
-      #       output.list$C2[strategy,seq(1,2*length(monitor.yrs)-1,by=2)]<-c2means
-      #       output.list$Call[strategy,seq(1,2*length(monitor.yrs)-1,by=2)]<-callmeans
-      #       output.list$MA[strategy,seq(1,2*length(monitor.yrs)-1,by=2)]<-mameans
-      #       
-      #       output.list$C1[strategy,(seq(1,2*length(monitor.yrs)-1,by=2)+1)]<-c1sd
-      #       output.list$C2[strategy,(seq(1,2*length(monitor.yrs)-1,by=2)+1)]<-c2sd
-      #       output.list$Call[strategy,(seq(1,2*length(monitor.yrs)-1,by=2)+1)]<-callsd
-      #       output.list$MA[strategy,(seq(1,2*length(monitor.yrs)-1,by=2)+1)]<-masd
       
     }
     
@@ -406,30 +353,27 @@ coral_trait_stoch.vec<-function(y,t, parms,size,nsp,temp.change=c("const","linea
       stoch.it<-y[length(y)]
       for(k in 2:t)
       {
-        # print(k) # Print counter
+       
         
         
         spps<-matrix(time.series[(1:(size*nsp)),k-1],nrow=nsp,ncol=size,byrow=T)   # Extract species density state values
         traits<-matrix(time.series[(size*nsp+1):(length(time.series[,1])-size),k-1],nrow=nsp,ncol=size,byrow=T)  # Extract trait state values
         temps<-time.series[(length(time.series[,1])-(size-1)):length(time.series[,1]),k-1]+stoch.temp*anoms[,k-1,stoch.it] # Extract temperature state values
-        #print("Anomalies Check")
-        #       print(temps)
-        #       print(anoms)
+       
         dspp<-spps   # create storage for change in density state values
         dtraits<-traits # create storage for change in trait state values
         
         
         for(i in 1:nsp)
         { 
-          #print("AA")
           
           dspp[i,]<-dNdt(Ni=spps[i,],zi=traits[i,],Nall=spps,rmax=rmax[i],V=V[i],D=D[i],w=w[i],
                          mort=m[i],TC=temps,alphas=alphas[i,],delx=1,mpa=mpa,mortality.model="tempvary",spp=species[i],growth="normal")
-          #print("Test")
+          
           dtraits[i,]<-dZdt(Ni=spps[i,],zi=traits[i,],Nall=spps,rmax=rmax[i],V=V[i],D=D[i],w=w[i],
                             mort=m[i],TC=temps,alphas=alphas[i,],delx=1,mpa=mpa,Nmin=Nmin,
                             mortality.model="tempvary",spp=species[i],growth="normal")
-          #print("test2")
+          
         }
         
         # Calculate change in temperatures across reef
@@ -449,44 +393,39 @@ coral_trait_stoch.vec<-function(y,t, parms,size,nsp,temp.change=c("const","linea
     if(burn==FALSE)
     {
       time.series.monitor<-matrix(NA,nrow=(2*nsp*size+size),ncol=length(monitor.yrs))# Create storage matrix for time series of state values at each location
-      #anoms<-matrix(NA,nrow=size,ncol=(t-1))
+      
       time.series<-y[1:(2*nsp*size+size)]  # set initial state
       mpa<-y[(7*size+1):(8*size)]
-     # print(mpa)
+     
       stoch.it<-y[length(y)]
-      #print(stoch.it)
+      
       for(k in 2:t)
       {
-       # print(k) # Print counter
+       
         
         
         spps<-matrix(time.series[(1:(size*nsp))],nrow=nsp,ncol=size,byrow=T)   # Extract species density state values
-        #print(dim(spps))
+       
         traits<-matrix(time.series[(size*nsp+1):(length(time.series)-size)],nrow=nsp,ncol=size,byrow=T)  # Extract trait state values
-       # print(dim(traits))
         temps<-time.series[(length(time.series)-(size-1)):length(time.series)]
-        #print(length(temps))
+       
         current.anom<-stoch.temp*anoms[,k-1,stoch.it]
-        #print(length(current.anom))
+       
         temps<-temps+current.anom # Extract temperature state values
-        #print("Anomalies Check")
-        #       print(temps)
-        #       print(anoms)
+       
         dspp<-spps   # create storage for change in density state values
         dtraits<-traits # create storage for change in trait state values
-        #print(spps)
-        #print(traits)
+        
         for(i in 1:nsp)
         { 
-          #print("AA")
           
           dspp[i,]<-dNdt(Ni=spps[i,],zi=traits[i,],Nall=spps,rmax=rmax[i],V=V[i],D=D[i],w=w[i],
                          mort=m[i],TC=temps,alphas=alphas[i,],delx=1,mpa=mpa,mortality.model="tempvary",spp=species[i],growth="normal")
-          #print("Test")
+          
           dtraits[i,]<-dZdt(Ni=spps[i,],zi=traits[i,],Nall=spps,rmax=rmax[i],V=V[i],D=D[i],w=w[i],
                             mort=m[i],TC=temps,alphas=alphas[i,],delx=1,mpa=mpa,Nmin=Nmin,
                             mortality.model="tempvary",spp=species[i],growth="normal")
-          #print("test2")
+          
         }
         
         # Calculate change in temperatures across reef

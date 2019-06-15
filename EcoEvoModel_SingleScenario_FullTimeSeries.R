@@ -139,21 +139,18 @@ mod.outall<-foreach(qqq=1:100,.packages=c("deSolve","numDeriv","mvtnorm","matrix
                               stoch.temp=TRUE,anoms,algaemort){
     
     with(as.list(parms), {  # Load parameter values
-      print("A")
+
       time.series<-matrix(NA,nrow=(2*nsp*size+size),ncol=t) # Create storage matrix for time series of state values at each location
       dspout<-time.series # Create storage matrix for time series of change in state values at each location
       time.series[,1]<-y  # set initial state
       extinctions<-matrix(0,nrow=3,ncol=(t-1))
       for(k in 2:t)
       {
-        print(k) # Print counter
         
         spps<-matrix(time.series[(1:(size*nsp)),k-1],nrow=nsp,ncol=size,byrow=T)   # Extract species density state values
         traits<-matrix(time.series[(size*nsp+1):(length(y)-size),k-1],nrow=nsp,ncol=size,byrow=T)  # Extract trait state values
         temps<-time.series[(length(y)-(size-1)):length(y),k-1]+anoms[,k-1] # Extract temperature state values
 
-        print("B")  
-        
         dspp<-spps   # create storage for change in density state values
         dtraits<-traits # create storage for change in trait state values
         
@@ -180,8 +177,7 @@ mod.outall<-foreach(qqq=1:100,.packages=c("deSolve","numDeriv","mvtnorm","matrix
         
         dspout[,k]<-dsp  # Store change in state value
         time.series[,k]<-time.series[,k-1]+dsp  # Store new state value
-        # extinctions[,k-1]<-extinctrisk(Nall=matrix(time.series[1:(3*size),k],nrow=3,ncol=size,byrow=T),
-        #                                threshold=.01)
+
       }
       return(list("ts"=time.series,"dsp"=dspout,"ext"=extinctions))
     })
