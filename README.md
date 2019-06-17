@@ -4,10 +4,10 @@ Eco-evo models for coral adaptation to climate change
 File Descriptions:
 
 EcoEvoModel_MultipleScenarios_EndResults.r
--	This file runs the eco-evo model adapted from Norberg et al in parallel across many biological scenarios. It stores the model results for set time points (20, 50, 100, and 500 years).
+-	This file runs the eco-evo model adapted from Norberg et al in parallel across many biological scenarios and stochastic iterations. It stores the model results for set time points (20, 50, 100, and 500 years).
 
 EcoEvoModel_SingleScenario_FullTimeSeries.r
--	This file runs a single biological scenario (V and D parameter set) in the eco-evo model adapted from Norberg et al in parallel across 100 iterations and all prioritization strategies. The entire time series of species cover, trait values, temperature conditions, and managed area layout are returned.
+-	This file runs a single biological scenario (V and D parameter set) in the eco-evo model adapted from Norberg et al in parallel across multiple stochastic iterations and all prioritization strategies. The entire time series of species cover, trait values, temperature conditions, and managed area layout are returned.
 
 NorbergFunctions.r
 -	Functions needed to run the model adapted from Norberg et al. This file is run within each of the two previous files in order for the functions to be available in R.
