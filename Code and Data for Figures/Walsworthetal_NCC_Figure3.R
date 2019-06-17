@@ -1,11 +1,12 @@
-# Make Figure 2 of Manuscript
-# - Two panels
-# - Top panel: Total coral cover on Y, proportion protected on X
-#    - Different lines for the management strategies
-#    - Intermediate dispersal and gen varaiance
-# - Bottom panel: Relative coral cover boxplots
-#    - Horizontal boxes
-#    - Legend built into each line?
+#==================================================================
+# Code to make Figure 3 of Walsworth et al. 2019 NCC paper
+# - Three panels
+#   - First panel, boxplot of coral cover relative to best performing
+#     management strategy for each stochasti iteration
+#   - Second panel, Proportion of coral cover (mean and 95% simulation
+#      interval across strategies)
+#   - Third panel, relative perforance of different strategies across
+#     different levels of additive genetic variance
 #====================================================================
 load("Walsworthetal_NCC_Figure3Data.Rdata.rdata")
 res_size<-0.2
